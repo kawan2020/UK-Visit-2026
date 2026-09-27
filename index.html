@@ -1,0 +1,1197 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FaceSort Mobile & Web Gallery</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Face API JS Library -->
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.12/dist/face-api.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 850: '#131e32', 900: '#0f172a', 950: '#020617' },
+                        violet: { 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9' }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        .avatar-ring-selected { box-shadow: 0 0 0 3px #8b5cf6, 0 0 15px rgba(139, 92, 246, 0.6); }
+        .touch-pan-x { touch-action: pan-x; }
+        .touch-action-none { touch-action: none; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased flex flex-col selection:bg-violet-500 selection:text-white">
+
+    <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-3 md:px-8 py-2.5 flex items-center justify-between gap-2 shadow-lg">
+        <div class="flex items-center space-x-2.5 min-w-0">
+            <div class="bg-gradient-to-tr from-violet-600 to-indigo-500 p-2 rounded-xl shadow-md shadow-violet-500/20 flex-shrink-0">
+                <i data-lucide="scan-face" class="w-5 h-5 text-white"></i>
+            </div>
+            <div class="truncate">
+                <h1 class="text-base md:text-xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent truncate">FaceSort Gallery</h1>
+                <p class="text-[10px] md:text-xs text-slate-400 hidden sm:block">AI Face Identification & Mobile Interactive Carousel</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-1.5 sm:space-x-3 flex-shrink-0">
+            <button onclick="triggerProjectImport()" class="flex items-center space-x-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs sm:text-sm font-medium border border-slate-700 transition-all shadow-sm active:scale-95">
+                <i data-lucide="folder-input" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-violet-400"></i>
+                <span class="hidden xs:inline">Import</span>
+            </button>
+            <input type="file" id="projectFileInput" class="hidden" accept=".json" onchange="importProject(event)">
+
+            <button onclick="exportProject()" class="flex items-center space-x-1.5 px-2.5 py-1.5 sm:px-3.5 sm:py-2 rounded-lg bg-violet-600 hover:bg-violet-500 text-white text-xs sm:text-sm font-medium transition-all shadow-md shadow-violet-600/25 active:scale-95">
+                <i data-lucide="download" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
+                <span class="hidden xs:inline">Export JSON</span>
+            </button>
+        </div>
+    </header>
+
+    <div id="statusBanner" class="bg-slate-900 border-b border-slate-800 px-3 py-2 text-xs text-slate-300 flex flex-col space-y-1.5 transition-all">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-2 truncate">
+                <span id="statusDot" class="w-2 h-2 rounded-full bg-amber-500 animate-pulse flex-shrink-0"></span>
+                <span id="statusMessage" class="font-medium truncate text-[11px] sm:text-xs">Initializing AI Engine...</span>
+            </div>
+            <div class="flex items-center space-x-2 flex-shrink-0">
+                <button id="retryBtn" onclick="initAiEngine()" class="hidden px-2 py-0.5 rounded bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-200 border border-slate-700">Retry</button>
+                <span id="statusPercent" class="font-mono font-bold text-violet-400 text-[11px] sm:text-xs">0%</span>
+            </div>
+        </div>
+        <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden border border-slate-800/80 p-0.5">
+            <div id="progressBarFill" class="bg-gradient-to-r from-violet-600 to-indigo-500 h-full rounded-full transition-all duration-300 w-0"></div>
+        </div>
+    </div>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 lg:p-8 space-y-6 md:space-y-8">
+        <div id="folderBlocksContainer" class="space-y-6 md:space-y-10">
+            <!-- Dynamic Album Folder Blocks injected here -->
+        </div>
+
+        <div class="pt-2 flex justify-center">
+            <button onclick="addNewFolderBlock()" class="group flex items-center space-x-2.5 px-4 py-3 rounded-xl bg-slate-900 border border-dashed border-slate-800 hover:border-violet-500/50 hover:bg-slate-850 text-slate-300 hover:text-white transition-all duration-300 shadow-md w-full max-w-md justify-center active:scale-98">
+                <div class="p-1.5 rounded-lg bg-slate-800 group-hover:bg-violet-600/20 text-slate-400 group-hover:text-violet-400 transition-colors">
+                    <i data-lucide="folder-plus" class="w-5 h-5"></i>
+                </div>
+                <span class="font-medium text-xs sm:text-sm">+ Create Another Image Folder Block</span>
+            </button>
+        </div>
+    </main>
+
+    <!-- Modal 1: Name & Verification Prompt (Mobile Responsive) -->
+    <div id="nameModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+        <div class="bg-slate-900 border-t sm:border border-slate-800 rounded-t-3xl sm:rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-2 text-violet-400 font-semibold text-sm sm:text-base">
+                    <i data-lucide="user-check" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                    <h2>Human Face Identified</h2>
+                </div>
+                <button onclick="skipNamingPerson('IGNORE')" class="text-slate-400 hover:text-white p-1" title="Skip and Ignore Face">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-col items-center space-y-2 py-1">
+                <div class="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full overflow-hidden border-2 sm:border-4 border-violet-500 shadow-xl bg-slate-950">
+                    <img id="modalFaceAvatar" src="" alt="Verified Human Face" class="w-full h-full object-cover">
+                </div>
+                <p class="text-[11px] sm:text-xs text-slate-400 text-center">Enter name, quick-merge, or skip background faces.</p>
+            </div>
+
+            <div id="quickMergeSection" class="space-y-1.5 hidden">
+                <label class="block text-[11px] font-medium text-slate-400">Quick-Merge with Existing Person:</label>
+                <div id="existingNamesContainer" class="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto p-1 bg-slate-950/60 rounded-xl border border-slate-800">
+                    <!-- Dynamic buttons injected here -->
+                </div>
+            </div>
+
+            <div class="space-y-1.5">
+                <label for="personNameInput" class="block text-[11px] font-medium text-slate-300">Or Type Person Name</label>
+                <input type="text" id="personNameInput" placeholder="e.g. Alex, Sarah, David" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2 text-xs sm:text-sm text-white focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500">
+            </div>
+
+            <div class="grid grid-cols-3 gap-2 pt-1">
+                <button onclick="skipNamingPerson('IGNORE')" class="py-2 px-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-medium transition-all text-center truncate">
+                    Skip
+                </button>
+                <button onclick="skipNamingPerson('OTHERS')" class="py-2 px-2 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-medium transition-all text-center truncate">
+                    To "Others"
+                </button>
+                <button onclick="savePersonName()" class="py-2 px-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-[11px] font-medium shadow-md shadow-violet-600/30 transition-all text-center truncate">
+                    Save Profile
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal 2: Re-Assign / Multi-Tag Modal -->
+    <div id="reassignModal" class="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-md flex items-end sm:items-center justify-center p-0 sm:p-4 hidden">
+        <div class="bg-slate-900 border-t sm:border border-slate-800 rounded-t-3xl sm:rounded-2xl max-w-md w-full p-5 sm:p-6 shadow-2xl space-y-4 max-h-[85vh] overflow-y-auto">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div class="flex items-center space-x-2 text-violet-400 font-semibold text-sm sm:text-base">
+                    <i data-lucide="user-cog" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                    <h2>Tag or Reassign Persons</h2>
+                </div>
+                <button onclick="closeReassignModal()" class="text-slate-400 hover:text-white p-1">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <p class="text-[11px] sm:text-xs text-slate-400">Select all people appearing in this photo:</p>
+
+            <div id="reassignOptionsContainer" class="space-y-2 max-h-56 overflow-y-auto">
+                <!-- Re-assignment options injected dynamically -->
+            </div>
+
+            <div class="flex justify-end space-x-2 pt-2 border-t border-slate-800">
+                <button onclick="closeReassignModal()" class="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-medium">
+                    Cancel
+                </button>
+                <button onclick="saveReassignTags()" class="px-3.5 py-2 rounded-xl bg-violet-600 hover:bg-violet-500 text-white text-xs font-medium shadow-md shadow-violet-600/30">
+                    Apply Tags
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let state = { folders: [] };
+        let isAiModelLoaded = false;
+        let namingQueue = [];
+        let currentNamingTask = null;
+        let activeReassignTask = null;
+
+        // Mobile Touch Handling Variables
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        window.onload = function () {
+            refreshIcons();
+            
+            // Check if there's a remote project file specified in URL query (e.g. index.html?data=gallery-data.json)
+            const urlParams = new URLSearchParams(window.location.search);
+            const remoteDataUrl = urlParams.get('data') || 'gallery-data.json';
+            
+            attemptAutoLoadRemoteProject(remoteDataUrl);
+            initAiEngine();
+        };
+
+        async function attemptAutoLoadRemoteProject(url) {
+            try {
+                const response = await fetch(url);
+                if (response.ok) {
+                    const imported = await response.json();
+                    if (imported && imported.folders && imported.folders.length > 0) {
+                        document.getElementById("folderBlocksContainer").innerHTML = '';
+                        state.folders = imported.folders;
+                        state.folders.forEach(folder => renderFolderBlock(folder));
+                        updateProgress("Remote gallery loaded successfully!", 100, "emerald");
+                        return;
+                    }
+                }
+            } catch (err) {
+                // Silently fallback to clean local mode if remote JSON doesn't exist yet
+            }
+
+            if (state.folders.length === 0) {
+                addNewFolderBlock();
+            }
+        }
+
+        async function initAiEngine() {
+            const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+            document.getElementById("retryBtn").classList.add("hidden");
+
+            try {
+                updateProgress("Downloading Face Detector...", 25, "amber");
+                await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+
+                updateProgress("Downloading Landmark Model...", 60, "amber");
+                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+
+                updateProgress("Downloading Face Matcher...", 90, "amber");
+                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+
+                isAiModelLoaded = true;
+                updateProgress("AI Ready (Strict 68-Point Landmark & 128D Matching)", 100, "emerald");
+            } catch (err) {
+                console.error("AI Loading Error:", err);
+                updateProgress("AI Model Offline/Failed. Check internet connection.", 100, "rose");
+                document.getElementById("retryBtn").classList.remove("hidden");
+            }
+        }
+
+        function updateProgress(message, percent, colorType) {
+            const statusMessage = document.getElementById("statusMessage");
+            const statusPercent = document.getElementById("statusPercent");
+            const progressBarFill = document.getElementById("progressBarFill");
+            const statusDot = document.getElementById("statusDot");
+
+            if (statusMessage) statusMessage.textContent = message;
+            if (statusPercent) statusPercent.textContent = `${percent}%`;
+            if (progressBarFill) progressBarFill.style.width = `${percent}%`;
+
+            if (statusDot) {
+                statusDot.className = "w-2 h-2 rounded-full animate-pulse flex-shrink-0 ";
+                if (colorType === "emerald") statusDot.classList.add("bg-emerald-500");
+                else if (colorType === "rose") statusDot.classList.add("bg-rose-500");
+                else statusDot.classList.add("bg-amber-500");
+            }
+        }
+
+        function refreshIcons() {
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                lucide.createIcons();
+            }
+        }
+
+        function addNewFolderBlock() {
+            const folderId = 'folder_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+            const folderNum = state.folders.length + 1;
+
+            const newFolder = {
+                id: folderId,
+                title: `Image Folder Block #${folderNum}`,
+                minFaceSize: 80,
+                strictnessThreshold: 0.48,
+                photos: [],
+                persons: [],
+                activeFilter: 'ALL',
+                activePhotoIndex: 0
+            };
+
+            state.folders.push(newFolder);
+            renderFolderBlock(newFolder);
+            refreshIcons();
+        }
+
+        function renderFolderBlock(folder) {
+            const container = document.getElementById("folderBlocksContainer");
+            if (!container) return;
+
+            const blockEl = document.createElement("section");
+            blockEl.id = `block_${folder.id}`;
+            blockEl.className = "bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-3.5 sm:p-6 shadow-xl space-y-4 sm:space-y-6";
+
+            blockEl.innerHTML = `
+                <!-- Block Header -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800/80 pb-3.5">
+                    <div class="flex items-center space-x-2.5 flex-1 min-w-0">
+                        <div class="p-1.5 rounded-lg bg-violet-600/20 text-violet-400 border border-violet-500/30 flex-shrink-0">
+                            <i data-lucide="folder" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                        </div>
+                        <input type="text" value="${escapeHtml(folder.title)}" onchange="updateFolderName('${folder.id}', this.value)" class="bg-transparent text-base sm:text-lg font-bold text-slate-100 hover:bg-slate-850 focus:bg-slate-950 focus:outline-none focus:ring-1 focus:ring-violet-500 rounded-lg px-2 py-0.5 w-full transition-all truncate">
+                    </div>
+
+                    <!-- Sensitivity Controls -->
+                    <div class="flex flex-wrap items-center justify-between sm:justify-end gap-3 bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/80 text-[11px] sm:text-xs">
+                        <div class="flex items-center space-x-1.5">
+                            <label class="text-slate-400 font-medium">Min Face:</label>
+                            <input type="range" min="30" max="250" value="${folder.minFaceSize}" oninput="updateFolderSlider('${folder.id}', 'minFaceSize', this.value)" class="w-16 sm:w-20 accent-violet-500 cursor-pointer">
+                            <span id="minFaceVal_${folder.id}" class="font-mono font-bold text-violet-400">${folder.minFaceSize}px</span>
+                        </div>
+
+                        <div class="flex items-center space-x-1.5 border-l border-slate-800 pl-2.5">
+                            <label class="text-slate-400 font-medium">Precision:</label>
+                            <input type="range" min="0.35" max="0.65" step="0.02" value="${folder.strictnessThreshold}" oninput="updateFolderSlider('${folder.id}', 'strictnessThreshold', this.value)" class="w-14 sm:w-16 accent-violet-500 cursor-pointer">
+                            <span id="strictVal_${folder.id}" class="font-mono font-bold text-violet-400">${folder.strictnessThreshold}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Person Directory Container -->
+                <div class="space-y-2">
+                    <div class="flex items-center justify-between">
+                        <h3 class="text-[10px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                            <i data-lucide="users" class="w-3.5 h-3.5 text-violet-400"></i>
+                            <span>Person Directory (Circular Avatars)</span>
+                        </h3>
+                    </div>
+
+                    <div class="bg-slate-950/80 border border-slate-800/80 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 min-h-[105px] overflow-hidden">
+                        <div id="avatarsContainer_${folder.id}" class="flex items-center space-x-3 sm:space-x-5 overflow-x-auto pb-1.5 pt-0.5 touch-pan-x">
+                            <!-- Avatars injected dynamically -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Interactive Carousel Box -->
+                <div id="carouselArea_${folder.id}" class="bg-slate-950/60 border border-slate-800 rounded-xl sm:rounded-2xl p-2.5 sm:p-4 space-y-3">
+                    <!-- Carousel injected dynamically -->
+                </div>
+            `;
+
+            container.appendChild(blockEl);
+            refreshFolderUI(folder.id);
+        }
+
+        function updateFolderName(folderId, newTitle) {
+            const folder = state.folders.find(f => f.id === folderId);
+            if (folder) folder.title = newTitle;
+        }
+
+        function updateFolderSlider(folderId, field, value) {
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) return;
+
+            folder[field] = parseFloat(value);
+            if (field === 'minFaceSize') {
+                const span = document.getElementById(`minFaceVal_${folderId}`);
+                if (span) span.textContent = `${value}px`;
+            } else if (field === 'strictnessThreshold') {
+                const span = document.getElementById(`strictVal_${folderId}`);
+                if (span) span.textContent = `${value}`;
+                reMatchFolderFaces(folder);
+            }
+            refreshFolderUI(folderId);
+        }
+
+        function reMatchFolderFaces(folder) {
+            folder.photos.forEach(photo => {
+                photo.faces.forEach(face => {
+                    if (face.descriptor && face.personId !== 'OTHERS' && face.personId !== 'IGNORED') {
+                        const matched = matchFaceToExistingPersons(folder, face.descriptor);
+                        if (matched) face.personId = matched.id;
+                    }
+                });
+            });
+        }
+
+        function triggerPhotoUpload(folderId) {
+            const fileInput = document.getElementById(`fileInput_${folderId}`);
+            if (fileInput) fileInput.click();
+        }
+
+        async function handlePhotoUpload(event, folderId) {
+            const files = Array.from(event.target.files);
+            if (files.length === 0) return;
+
+            if (!isAiModelLoaded) {
+                alert("Please wait until AI Neural Network models finish downloading!");
+                return;
+            }
+
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) return;
+
+            const total = files.length;
+            updateProgress(`Scanning image 0 of ${total} (0%)...`, 0, "amber");
+
+            for (let i = 0; i < total; i++) {
+                const file = files[i];
+                if (!file.type.startsWith("image/")) continue;
+
+                const percent = Math.round(((i + 1) / total) * 100);
+                updateProgress(`Scanning image ${i + 1} of ${total} (${percent}%)...`, percent, "amber");
+
+                const dataUrl = await readFileAsDataUrl(file);
+                const imgEl = await loadImageElement(dataUrl);
+
+                await detectFacesInImage(imgEl, file.name, folder);
+            }
+
+            updateProgress(`Batch completed! Processed ${total} photos.`, 100, "emerald");
+            refreshFolderUI(folder.id);
+            processNamingQueue();
+            event.target.value = '';
+        }
+
+        function readFileAsDataUrl(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function loadImageElement(src) {
+            return new Promise((resolve) => {
+                const img = new Image();
+                img.onload = () => resolve(img);
+                img.src = src;
+            });
+        }
+
+        async function detectFacesInImage(imgEl, fileName, folder) {
+            const detections = await faceapi.detectAllFaces(imgEl, new faceapi.SsdMobilenetv1Options({ minConfidence: 0.5 }))
+                .withFaceLandmarks()
+                .withFaceDescriptors();
+
+            const photoId = 'photo_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+            const photoRecord = {
+                id: photoId,
+                name: fileName,
+                dataUrl: imgEl.src,
+                width: imgEl.naturalWidth,
+                height: imgEl.naturalHeight,
+                faces: []
+            };
+
+            if (detections.length === 0) {
+                // Non-face photo (food, flowers, landscapes, etc.): Auto-assign to OTHERS
+                photoRecord.faces.push({
+                    id: 'face_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                    box: { x: 0, y: 0, width: imgEl.naturalWidth, height: imgEl.naturalHeight },
+                    avatarUrl: imgEl.src,
+                    descriptor: [],
+                    personId: 'OTHERS'
+                });
+            } else {
+                for (const det of detections) {
+                    const box = det.detection.box;
+                    const avatarUrl = cropFaceCanvas(imgEl, box);
+                    const descriptorArray = Array.from(det.descriptor);
+
+                    const matchedPerson = matchFaceToExistingPersons(folder, descriptorArray);
+
+                    const faceRecord = {
+                        id: 'face_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                        box: { x: box.x, y: box.y, width: box.width, height: box.height },
+                        avatarUrl: avatarUrl,
+                        descriptor: descriptorArray,
+                        personId: matchedPerson ? matchedPerson.id : null
+                    };
+
+                    photoRecord.faces.push(faceRecord);
+
+                    if (!matchedPerson) {
+                        namingQueue.push({
+                            folderId: folder.id,
+                            photoId: photoId,
+                            face: faceRecord
+                        });
+                    }
+                }
+            }
+
+            folder.photos.push(photoRecord);
+        }
+
+        function cropFaceCanvas(imgEl, box) {
+            const canvas = document.createElement("canvas");
+            const ctx = canvas.getContext("2d");
+
+            const padX = box.width * 0.25;
+            const padY = box.height * 0.25;
+            const cropX = Math.max(0, box.x - padX);
+            const cropY = Math.max(0, box.y - padY);
+            const cropW = Math.min(imgEl.naturalWidth - cropX, box.width + padX * 2);
+            const cropH = Math.min(imgEl.naturalHeight - cropY, box.height + padY * 2);
+
+            canvas.width = 160;
+            canvas.height = 160;
+            ctx.drawImage(imgEl, cropX, cropY, cropW, cropH, 0, 0, 160, 160);
+
+            return canvas.toDataURL("image/jpeg", 0.85);
+        }
+
+        function matchFaceToExistingPersons(folder, faceDescriptor) {
+            if (!faceDescriptor || faceDescriptor.length !== 128) return null;
+
+            const threshold = folder.strictnessThreshold || 0.48;
+            let bestMatch = null;
+            let lowestDistance = threshold;
+
+            for (const person of folder.persons) {
+                const descriptors = person.descriptors || (person.descriptor ? [person.descriptor] : []);
+                for (const desc of descriptors) {
+                    if (desc && desc.length === 128) {
+                        const distance = faceapi.euclideanDistance(faceDescriptor, desc);
+                        if (distance < lowestDistance) {
+                            lowestDistance = distance;
+                            bestMatch = person;
+                        }
+                    }
+                }
+            }
+            return bestMatch;
+        }
+
+        function refreshFolderUI(folderId) {
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) return;
+
+            renderAvatars(folder);
+            renderCarousel(folder);
+            refreshIcons();
+        }
+
+        function renderAvatars(folder) {
+            const container = document.getElementById(`avatarsContainer_${folder.id}`);
+            if (!container) return;
+
+            container.innerHTML = '';
+
+            // 1. "ALL" Unfiltered Photos Avatar
+            const allSelected = folder.activeFilter === 'ALL';
+            const allAvatar = document.createElement("div");
+            allAvatar.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0";
+            allAvatar.onclick = () => setFolderFilter(folder.id, 'ALL');
+
+            allAvatar.innerHTML = `
+                <div class="relative w-14 h-14 sm:w-18 sm:h-18 rounded-full flex items-center justify-center bg-gradient-to-tr from-violet-600 to-indigo-600 text-white font-bold shadow-md transition-all transform active:scale-95 ${allSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700'}">
+                    <i data-lucide="grid" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+                </div>
+                <div class="text-center">
+                    <p class="text-[11px] font-semibold ${allSelected ? 'text-violet-400' : 'text-slate-300'}">ALL</p>
+                    <p class="text-[9px] text-slate-500">${folder.photos.length} photos</p>
+                </div>
+            `;
+            container.appendChild(allAvatar);
+
+            const visiblePersons = getFilteredPersonsForFolder(folder);
+
+            // 2. Individual Named Circular Avatars
+            visiblePersons.forEach(person => {
+                const isSelected = folder.activeFilter === person.id;
+                const personPhotoCount = getPhotosForPerson(folder, person.id).length;
+
+                const avatarEl = document.createElement("div");
+                avatarEl.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0";
+                avatarEl.onclick = () => setFolderFilter(folder.id, person.id);
+
+                avatarEl.innerHTML = `
+                    <div class="relative w-14 h-14 sm:w-18 sm:h-18 rounded-full overflow-hidden bg-slate-900 transition-all transform active:scale-95 ${isSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-violet-500'}">
+                        <img src="${person.avatarUrl}" alt="${escapeHtml(person.name)}" class="w-full h-full object-cover">
+                    </div>
+                    <div class="text-center max-w-[70px] sm:max-w-[85px] truncate">
+                        <p class="text-[11px] font-medium truncate ${isSelected ? 'text-violet-400 font-semibold' : 'text-slate-300'}">${escapeHtml(person.name)}</p>
+                        <p class="text-[9px] text-slate-500">${personPhotoCount} photos</p>
+                    </div>
+                `;
+                container.appendChild(avatarEl);
+            });
+
+            // 3. "Others" Avatar
+            const othersSelected = folder.activeFilter === 'OTHERS';
+            const othersPhotoCount = getOthersPhotos(folder).length;
+            const othersAvatar = document.createElement("div");
+            othersAvatar.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0";
+            othersAvatar.onclick = () => setFolderFilter(folder.id, 'OTHERS');
+
+            othersAvatar.innerHTML = `
+                <div class="relative w-14 h-14 sm:w-18 sm:h-18 rounded-full flex items-center justify-center bg-slate-800 text-slate-400 font-bold transition-all transform active:scale-95 ${othersSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-slate-500'}">
+                    <i data-lucide="user-minus" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+                </div>
+                <div class="text-center">
+                    <p class="text-[11px] font-medium ${othersSelected ? 'text-violet-400 font-semibold' : 'text-slate-400'}">Others</p>
+                    <p class="text-[9px] text-slate-500">${othersPhotoCount} photos</p>
+                </div>
+            `;
+            container.appendChild(othersAvatar);
+
+            // 4. "+ Add Photos" Button
+            const addPhotosBtn = document.createElement("div");
+            addPhotosBtn.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0 pl-1";
+            addPhotosBtn.onclick = () => triggerPhotoUpload(folder.id);
+
+            addPhotosBtn.innerHTML = `
+                <div class="w-14 h-14 sm:w-18 sm:h-18 rounded-full border-2 border-dashed border-violet-500/60 hover:border-violet-400 bg-violet-600/10 flex flex-col items-center justify-center text-violet-400 transition-all transform active:scale-95">
+                    <i data-lucide="plus" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+                </div>
+                <div class="text-center">
+                    <p class="text-[11px] font-medium text-violet-400">+ Add</p>
+                    <p class="text-[9px] text-slate-500">Append</p>
+                </div>
+            `;
+            container.appendChild(addPhotosBtn);
+
+            let fileInput = document.getElementById(`fileInput_${folder.id}`);
+            if (!fileInput) {
+                fileInput = document.createElement("input");
+                fileInput.type = "file";
+                fileInput.id = `fileInput_${folder.id}`;
+                fileInput.multiple = true;
+                fileInput.accept = "image/*";
+                fileInput.className = "hidden";
+                fileInput.onchange = (e) => handlePhotoUpload(e, folder.id);
+                document.body.appendChild(fileInput);
+            }
+        }
+
+        function getFilteredPersonsForFolder(folder) {
+            const minSize = folder.minFaceSize;
+            const validPersonIds = new Set();
+
+            folder.photos.forEach(photo => {
+                photo.faces.forEach(face => {
+                    if (face.box.width >= minSize && face.box.height >= minSize && face.personId && face.personId !== 'OTHERS' && face.personId !== 'IGNORED') {
+                        validPersonIds.add(face.personId);
+                    }
+                });
+            });
+
+            return folder.persons.filter(p => validPersonIds.has(p.id));
+        }
+
+        function getOthersPhotos(folder) {
+            const minSize = folder.minFaceSize;
+            return folder.photos.filter(photo => {
+                return photo.faces.some(f => f.personId === 'OTHERS' && f.box.width >= minSize && f.box.height >= minSize);
+            });
+        }
+
+        function getPhotosForPerson(folder, personId) {
+            const minSize = folder.minFaceSize;
+            return folder.photos.filter(photo => {
+                return photo.faces.some(f => f.personId === personId && f.box.width >= minSize && f.box.height >= minSize);
+            });
+        }
+
+        function setFolderFilter(folderId, filterId) {
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) return;
+
+            folder.activeFilter = filterId;
+            folder.activePhotoIndex = 0;
+            refreshFolderUI(folderId);
+        }
+
+        function processNamingQueue() {
+            if (currentNamingTask || namingQueue.length === 0) return;
+
+            currentNamingTask = namingQueue.shift();
+            const modal = document.getElementById("nameModal");
+            const avatarImg = document.getElementById("modalFaceAvatar");
+            const nameInput = document.getElementById("personNameInput");
+            const quickMergeSection = document.getElementById("quickMergeSection");
+            const existingNamesContainer = document.getElementById("existingNamesContainer");
+
+            avatarImg.src = currentNamingTask.face.avatarUrl;
+            nameInput.value = '';
+
+            const folder = state.folders.find(f => f.id === currentNamingTask.folderId);
+            if (folder && folder.persons.length > 0) {
+                existingNamesContainer.innerHTML = '';
+                folder.persons.forEach(p => {
+                    const btn = document.createElement("button");
+                    btn.type = "button";
+                    btn.className = "flex items-center space-x-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-violet-600/30 hover:border-violet-500 border border-slate-700 text-[11px] font-medium text-slate-200 transition-all";
+                    btn.onclick = () => savePersonName(p.name);
+                    btn.innerHTML = `
+                        <img src="${p.avatarUrl}" class="w-3.5 h-3.5 rounded-full object-cover">
+                        <span>${escapeHtml(p.name)}</span>
+                    `;
+                    existingNamesContainer.appendChild(btn);
+                });
+                quickMergeSection.classList.remove("hidden");
+            } else {
+                quickMergeSection.classList.add("hidden");
+            }
+
+            modal.classList.remove("hidden");
+            nameInput.focus();
+        }
+
+        function savePersonName(overrideName = null) {
+            if (!currentNamingTask) return;
+
+            const nameInput = document.getElementById("personNameInput");
+            const rawName = overrideName || nameInput.value.trim();
+            const name = rawName || "Person " + (getFolderPersonsCount(currentNamingTask.folderId) + 1);
+
+            const folder = state.folders.find(f => f.id === currentNamingTask.folderId);
+            if (folder) {
+                const existingPerson = folder.persons.find(p => p.name.toLowerCase() === name.toLowerCase());
+
+                if (existingPerson) {
+                    currentNamingTask.face.personId = existingPerson.id;
+                    if (!existingPerson.descriptors) {
+                        existingPerson.descriptors = [existingPerson.descriptor].filter(Boolean);
+                    }
+                    if (currentNamingTask.face.descriptor) {
+                        existingPerson.descriptors.push(currentNamingTask.face.descriptor);
+                    }
+                } else {
+                    const personId = 'person_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+                    const newPerson = {
+                        id: personId,
+                        name: name,
+                        avatarUrl: currentNamingTask.face.avatarUrl,
+                        descriptors: currentNamingTask.face.descriptor ? [currentNamingTask.face.descriptor] : [],
+                        descriptor: currentNamingTask.face.descriptor
+                    };
+
+                    folder.persons.push(newPerson);
+                    currentNamingTask.face.personId = personId;
+                }
+
+                reMatchFolderFaces(folder);
+                refreshFolderUI(folder.id);
+            }
+
+            closeNamingModal();
+        }
+
+        function skipNamingPerson(mode = 'IGNORE') {
+            if (currentNamingTask) {
+                currentNamingTask.face.personId = mode === 'OTHERS' ? 'OTHERS' : 'IGNORED';
+                const folder = state.folders.find(f => f.id === currentNamingTask.folderId);
+                if (folder) refreshFolderUI(folder.id);
+            }
+            closeNamingModal();
+        }
+
+        function closeNamingModal() {
+            document.getElementById("nameModal").classList.add("hidden");
+            currentNamingTask = null;
+            setTimeout(processNamingQueue, 150);
+        }
+
+        function getFolderPersonsCount(folderId) {
+            const folder = state.folders.find(f => f.id === folderId);
+            return folder ? folder.persons.length : 0;
+        }
+
+        function renderCarousel(folder) {
+            const container = document.getElementById(`carouselArea_${folder.id}`);
+            if (!container) return;
+
+            let filteredPhotos = folder.photos;
+            let filterLabel = "ALL Photos";
+
+            if (folder.activeFilter === 'OTHERS') {
+                filteredPhotos = getOthersPhotos(folder);
+                filterLabel = `Others (${filteredPhotos.length})`;
+            } else if (folder.activeFilter !== 'ALL') {
+                const person = folder.persons.find(p => p.id === folder.activeFilter);
+                if (person) {
+                    filteredPhotos = getPhotosForPerson(folder, person.id);
+                    filterLabel = `${person.name} (${filteredPhotos.length})`;
+                }
+            }
+
+            if (filteredPhotos.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-10 text-slate-500 space-y-2 text-center">
+                        <i data-lucide="image-off" class="w-8 h-8 stroke-1"></i>
+                        <p class="text-xs font-medium">No photos found in this category.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (folder.activePhotoIndex >= filteredPhotos.length) {
+                folder.activePhotoIndex = 0;
+            }
+
+            const currentPhoto = filteredPhotos[folder.activePhotoIndex];
+
+            container.innerHTML = `
+                <div class="flex items-center justify-between gap-2 border-b border-slate-800/60 pb-2.5">
+                    <span class="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded bg-violet-600/20 text-violet-400 border border-violet-500/30 truncate max-w-[150px] sm:max-w-none">
+                        ${escapeHtml(filterLabel)}
+                    </span>
+
+                    <div class="flex items-center space-x-1.5">
+                        ${(folder.activeFilter !== 'ALL' && folder.activeFilter !== 'OTHERS') ? `
+                            <button onclick="setAsPersonAvatar('${folder.id}', '${currentPhoto.id}')" class="flex items-center space-x-1 px-2 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-[10px] sm:text-xs font-medium transition-all" title="Use as avatar">
+                                <i data-lucide="user-check" class="w-3 h-3"></i>
+                                <span class="hidden xs:inline">Set Avatar</span>
+                            </button>
+                        ` : ''}
+
+                        <button onclick="openReassignModal('${folder.id}', '${currentPhoto.id}')" class="flex items-center space-x-1 px-2 py-1 rounded bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 text-[10px] sm:text-xs font-medium transition-all">
+                            <i data-lucide="tags" class="w-3 h-3"></i>
+                            <span>Tag</span>
+                        </button>
+
+                        <span class="text-[10px] sm:text-xs text-slate-400 font-mono pl-1">
+                            ${folder.activePhotoIndex + 1}/${filteredPhotos.length}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Touch Carousel Frame with Swipe Support -->
+                <div id="carouselFrame_${folder.id}" 
+                     ontouchstart="handleTouchStart(event)" 
+                     ontouchend="handleTouchEnd(event, '${folder.id}')" 
+                     class="relative group flex items-center justify-center bg-slate-950/80 rounded-lg sm:rounded-xl overflow-hidden min-h-[260px] sm:min-h-[340px] max-h-[500px] select-none">
+                    
+                    <img src="${currentPhoto.dataUrl}" alt="${escapeHtml(currentPhoto.name)}" class="max-h-[480px] w-auto max-w-full object-contain rounded shadow-2xl">
+
+                    <!-- Prev/Next Controls for Desktop & Mobile -->
+                    <button onclick="navigateCarousel('${folder.id}', -1)" class="absolute left-2 top-1/2 -translate-y-1/2 p-2 sm:p-3 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 shadow-xl opacity-70 group-hover:opacity-100 transition-all active:scale-90">
+                        <i data-lucide="chevron-left" class="w-4 h-4 sm:w-6 sm:h-6"></i>
+                    </button>
+
+                    <button onclick="navigateCarousel('${folder.id}', 1)" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 sm:p-3 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 shadow-xl opacity-70 group-hover:opacity-100 transition-all active:scale-90">
+                        <i data-lucide="chevron-right" class="w-4 h-4 sm:w-6 sm:h-6"></i>
+                    </button>
+
+                    <div class="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-md border border-slate-800 px-2 py-1 rounded text-[10px] sm:text-xs text-slate-300 max-w-[80%] truncate">
+                        <span>${escapeHtml(currentPhoto.name)}</span>
+                    </div>
+                </div>
+
+                <!-- Thumbnail Strip -->
+                <div class="flex items-center space-x-2 overflow-x-auto py-1 touch-pan-x">
+                    ${filteredPhotos.map((p, idx) => `
+                        <div onclick="setCarouselPhotoIndex('${folder.id}', ${idx})" class="relative w-12 h-12 sm:w-16 sm:h-16 rounded overflow-hidden flex-shrink-0 cursor-pointer transition-all border-2 ${idx === folder.activePhotoIndex ? 'border-violet-500 scale-105 shadow-md' : 'border-slate-800 opacity-50 hover:opacity-100'}">
+                            <img src="${p.dataUrl}" class="w-full h-full object-cover">
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function handleTouchStart(event) {
+            touchStartX = event.changedTouches[0].screenX;
+        }
+
+        function handleTouchEnd(event, folderId) {
+            touchEndX = event.changedTouches[0].screenX;
+            handleSwipeGesture(folderId);
+        }
+
+        function handleSwipeGesture(folderId) {
+            const swipeDistance = touchEndX - touchStartX;
+            if (swipeDistance > 40) {
+                navigateCarousel(folderId, -1); // Swipe Right -> Previous
+            } else if (swipeDistance < -40) {
+                navigateCarousel(folderId, 1);  // Swipe Left -> Next
+            }
+        }
+
+        function openReassignModal(folderId, photoId) {
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) return;
+
+            const photo = folder.photos.find(p => p.id === photoId);
+            if (!photo) return;
+
+            activeReassignTask = { folderId, photoId };
+            const modal = document.getElementById("reassignModal");
+            const container = document.getElementById("reassignOptionsContainer");
+
+            container.innerHTML = '';
+
+            const taggedPersonIds = new Set(
+                photo.faces
+                    .map(f => f.personId)
+                    .filter(Boolean)
+            );
+
+            // 1. Add 'Others' Option
+            const isOthersChecked = taggedPersonIds.has('OTHERS');
+            const othersLabel = document.createElement("label");
+            othersLabel.className = "flex items-center justify-between p-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-xs text-slate-200 cursor-pointer transition-all";
+            othersLabel.innerHTML = `
+                <div class="flex items-center space-x-2.5">
+                    <input type="checkbox" value="OTHERS" ${isOthersChecked ? 'checked' : ''} class="reassign-person-checkbox w-4 h-4 rounded accent-violet-600 bg-slate-950 border-slate-700 cursor-pointer">
+                    <div class="w-5 h-5 rounded-full bg-slate-700 flex items-center justify-center text-[10px] text-slate-300 font-bold border border-slate-600">
+                        <i data-lucide="user-minus" class="w-3 h-3"></i>
+                    </div>
+                    <span class="font-medium text-slate-100 truncate max-w-[160px]">Others (Non-Face / Unassigned)</span>
+                </div>
+                <span class="text-[10px] text-slate-400 font-mono">${isOthersChecked ? 'Tagged' : 'Tag'}</span>
+            `;
+            container.appendChild(othersLabel);
+
+            // 2. Add Named Persons (e.g., Sayang, Lorna, KK)
+            folder.persons.forEach(person => {
+                const isChecked = taggedPersonIds.has(person.id);
+                const label = document.createElement("label");
+                label.className = "flex items-center justify-between p-2.5 rounded-xl bg-slate-800 hover:bg-slate-750 border border-slate-700 text-xs text-slate-200 cursor-pointer transition-all";
+                
+                label.innerHTML = `
+                    <div class="flex items-center space-x-2.5">
+                        <input type="checkbox" value="${person.id}" ${isChecked ? 'checked' : ''} class="reassign-person-checkbox w-4 h-4 rounded accent-violet-600 bg-slate-950 border-slate-700 cursor-pointer">
+                        <img src="${person.avatarUrl}" class="w-5 h-5 rounded-full object-cover border border-slate-600">
+                        <span class="font-medium text-slate-100 truncate max-w-[160px]">${escapeHtml(person.name)}</span>
+                    </div>
+                    <span class="text-[10px] text-slate-400 font-mono">${isChecked ? 'Tagged' : 'Tag'}</span>
+                `;
+                container.appendChild(label);
+            });
+
+            modal.classList.remove("hidden");
+            refreshIcons();
+        }
+
+        function saveReassignTags() {
+            if (!activeReassignTask) return;
+
+            const folder = state.folders.find(f => f.id === activeReassignTask.folderId);
+            if (!folder) return;
+
+            const photo = folder.photos.find(p => p.id === activeReassignTask.photoId);
+            if (!photo) return;
+
+            const checkboxes = Array.from(document.querySelectorAll('.reassign-person-checkbox'));
+            const selectedPersonIds = checkboxes.filter(cb => cb.checked).map(cb => cb.value);
+
+            if (selectedPersonIds.length === 0) {
+                photo.faces.forEach(face => {
+                    face.personId = 'OTHERS';
+                });
+            } else {
+                selectedPersonIds.forEach((personId, index) => {
+                    if (photo.faces[index]) {
+                        photo.faces[index].personId = personId;
+                    } else {
+                        const baseFace = photo.faces[0] || {};
+                        const fallbackSrc = photo.dataUrl || photo.path || ('images/' + photo.name);
+                        photo.faces.push({
+                            id: 'face_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                            box: baseFace.box || { x: 0, y: 0, width: 100, height: 100 },
+                            avatarUrl: baseFace.avatarUrl || fallbackSrc,
+                            descriptor: baseFace.descriptor || [],
+                            personId: personId
+                        });
+                    }
+                });
+
+                for (let i = selectedPersonIds.length; i < photo.faces.length; i++) {
+                    photo.faces[i].personId = 'OTHERS';
+                }
+            }
+
+            refreshFolderUI(folder.id);
+            closeReassignModal();
+            updateProgress("Updated person tags for photo!", 100, "emerald");
+        }
+
+        function setAsPersonAvatar(folderId, photoId) {
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) return;
+
+            const person = folder.persons.find(p => p.id === folder.activeFilter);
+            if (!person) return;
+
+            const photo = folder.photos.find(p => p.id === photoId);
+            if (!photo) return;
+
+            const matchingFace = photo.faces.find(f => f.personId === person.id) || photo.faces[0];
+            const fallbackSrc = photo.dataUrl || photo.path || ('images/' + photo.name);
+            const newAvatarUrl = matchingFace ? matchingFace.avatarUrl : fallbackSrc;
+
+            person.avatarUrl = newAvatarUrl;
+            refreshFolderUI(folder.id);
+            updateProgress(`Updated circular avatar for ${person.name}!`, 100, "emerald");
+        }
+
+        function closeReassignModal() {
+            document.getElementById("reassignModal").classList.add("hidden");
+            activeReassignTask = null;
+        }
+
+        function navigateCarousel(folderId, direction) {
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) return;
+
+            let filteredPhotos = folder.photos;
+            if (folder.activeFilter === 'OTHERS') {
+                filteredPhotos = getOthersPhotos(folder);
+            } else if (folder.activeFilter !== 'ALL') {
+                filteredPhotos = getPhotosForPerson(folder, folder.activeFilter);
+            }
+            if (filteredPhotos.length === 0) return;
+
+            folder.activePhotoIndex = (folder.activePhotoIndex + direction + filteredPhotos.length) % filteredPhotos.length;
+            renderCarousel(folder);
+            refreshIcons();
+        }
+
+        function setCarouselPhotoIndex(folderId, index) {
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) return;
+
+            folder.activePhotoIndex = index;
+            renderCarousel(folder);
+            refreshIcons();
+        }
+
+        function renderCarousel(folder) {
+            const container = document.getElementById(`carouselArea_${folder.id}`);
+            if (!container) return;
+
+            let filteredPhotos = folder.photos;
+            let filterLabel = "ALL Photos";
+
+            if (folder.activeFilter === 'OTHERS') {
+                filteredPhotos = getOthersPhotos(folder);
+                filterLabel = `Others (${filteredPhotos.length})`;
+            } else if (folder.activeFilter !== 'ALL') {
+                const person = folder.persons.find(p => p.id === folder.activeFilter);
+                if (person) {
+                    filteredPhotos = getPhotosForPerson(folder, person.id);
+                    filterLabel = `${person.name} (${filteredPhotos.length})`;
+                }
+            }
+
+            if (filteredPhotos.length === 0) {
+                container.innerHTML = `
+                    <div class="flex flex-col items-center justify-center py-10 text-slate-500 space-y-2 text-center">
+                        <i data-lucide="image-off" class="w-8 h-8 stroke-1"></i>
+                        <p class="text-xs font-medium">No photos found in this category.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            if (folder.activePhotoIndex >= filteredPhotos.length) {
+                folder.activePhotoIndex = 0;
+            }
+
+            const currentPhoto = filteredPhotos[folder.activePhotoIndex];
+            const currentPhotoSrc = currentPhoto.dataUrl || currentPhoto.path || ('images/' + currentPhoto.name);
+
+            container.innerHTML = `
+                <div class="flex items-center justify-between gap-2 border-b border-slate-800/60 pb-2.5">
+                    <span class="text-[10px] sm:text-xs font-semibold px-2 py-0.5 rounded bg-violet-600/20 text-violet-400 border border-violet-500/30 truncate max-w-[150px] sm:max-w-none">
+                        ${escapeHtml(filterLabel)}
+                    </span>
+
+                    <div class="flex items-center space-x-1.5">
+                        ${(folder.activeFilter !== 'ALL' && folder.activeFilter !== 'OTHERS') ? `
+                            <button onclick="setAsPersonAvatar('${folder.id}', '${currentPhoto.id}')" class="flex items-center space-x-1 px-2 py-1 rounded bg-emerald-600/20 hover:bg-emerald-600/30 text-emerald-300 border border-emerald-500/30 text-[10px] sm:text-xs font-medium transition-all" title="Use as avatar">
+                                <i data-lucide="user-check" class="w-3 h-3"></i>
+                                <span class="hidden xs:inline">Set Avatar</span>
+                            </button>
+                        ` : ''}
+
+                        <button onclick="openReassignModal('${folder.id}', '${currentPhoto.id}')" class="flex items-center space-x-1 px-2 py-1 rounded bg-violet-600/20 hover:bg-violet-600/30 text-violet-300 border border-violet-500/30 text-[10px] sm:text-xs font-medium transition-all">
+                            <i data-lucide="tags" class="w-3 h-3"></i>
+                            <span>Tag</span>
+                        </button>
+
+                        <span class="text-[10px] sm:text-xs text-slate-400 font-mono pl-1">
+                            ${folder.activePhotoIndex + 1}/${filteredPhotos.length}
+                        </span>
+                    </div>
+                </div>
+
+                <!-- Touch Carousel Frame with Swipe Support -->
+                <div id="carouselFrame_${folder.id}" 
+                     ontouchstart="handleTouchStart(event)" 
+                     ontouchend="handleTouchEnd(event, '${folder.id}')" 
+                     class="relative group flex items-center justify-center bg-slate-950/80 rounded-lg sm:rounded-xl overflow-hidden min-h-[260px] sm:min-h-[340px] max-h-[500px] select-none">
+                    
+                    <img src="${currentPhotoSrc}" alt="${escapeHtml(currentPhoto.name)}" class="max-h-[480px] w-auto max-w-full object-contain rounded shadow-2xl">
+
+                    <!-- Prev/Next Controls for Desktop & Mobile -->
+                    <button onclick="navigateCarousel('${folder.id}', -1)" class="absolute left-2 top-1/2 -translate-y-1/2 p-2 sm:p-3 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 shadow-xl opacity-70 group-hover:opacity-100 transition-all active:scale-90">
+                        <i data-lucide="chevron-left" class="w-4 h-4 sm:w-6 sm:h-6"></i>
+                    </button>
+
+                    <button onclick="navigateCarousel('${folder.id}', 1)" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 sm:p-3 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 shadow-xl opacity-70 group-hover:opacity-100 transition-all active:scale-90">
+                        <i data-lucide="chevron-right" class="w-4 h-4 sm:w-6 sm:h-6"></i>
+                    </button>
+
+                    <div class="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-md border border-slate-800 px-2 py-1 rounded text-[10px] sm:text-xs text-slate-300 max-w-[80%] truncate">
+                        <span>${escapeHtml(currentPhoto.name)}</span>
+                    </div>
+                </div>
+
+                <!-- Thumbnail Strip -->
+                <div class="flex items-center space-x-2 overflow-x-auto py-1 touch-pan-x">
+                    ${filteredPhotos.map((p, idx) => {
+                        const thumbSrc = p.dataUrl || p.path || ('images/' + p.name);
+                        return `
+                            <div onclick="setCarouselPhotoIndex('${folder.id}', ${idx})" class="relative w-12 h-12 sm:w-16 sm:h-16 rounded overflow-hidden flex-shrink-0 cursor-pointer transition-all border-2 ${idx === folder.activePhotoIndex ? 'border-violet-500 scale-105 shadow-md' : 'border-slate-800 opacity-50 hover:opacity-100'}">
+                                <img src="${thumbSrc}" class="w-full h-full object-cover">
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        function exportProject() {
+            if (state.folders.length === 0) {
+                alert("No folder blocks or photo data to export.");
+                return;
+            }
+
+            // Create lightweight deep copy stripping heavy Base64 dataUrls
+            const lightweightFolders = state.folders.map(folder => ({
+                ...folder,
+                photos: folder.photos.map(photo => {
+                    const relativePath = photo.path || ('images/' + photo.name);
+                    return {
+                        id: photo.id,
+                        name: photo.name,
+                        path: relativePath,
+                        width: photo.width,
+                        height: photo.height,
+                        faces: photo.faces
+                    };
+                })
+            }));
+
+            const exportData = {
+                version: "2.4-lightweight-json",
+                timestamp: new Date().toISOString(),
+                folders: lightweightFolders
+            };
+
+            const jsonStr = JSON.stringify(exportData, null, 2);
+            const blob = new Blob([jsonStr], { type: "application/json" });
+            const url = URL.createObjectURL(blob);
+
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `gallery-data.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            updateProgress("Exported lightweight 'gallery-data.json' (~200 KB)!", 100, "emerald");
+        }
+
+        function triggerProjectImport() {
+            document.getElementById("projectFileInput").click();
+        }
+
+        function importProject(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported && imported.folders) {
+                        document.getElementById("folderBlocksContainer").innerHTML = '';
+                        state.folders = imported.folders;
+
+                        state.folders.forEach(folder => renderFolderBlock(folder));
+                        updateProgress("Project imported successfully!", 100, "emerald");
+                    } else {
+                        alert("Invalid project file format.");
+                    }
+                } catch (err) {
+                    alert("Import Error: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = '';
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
