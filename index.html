@@ -84,44 +84,48 @@
             loadGalleryData();
         };
 
-        async function loadGalleryData() {
-            const container = document.getElementById("galleryContainer");
-            const targetUrl = 'gallery-data.json?t=' + Date.now();
+       async function loadGalleryData() {
+    const loader = document.getElementById('loadingSpinner');
+    const diagnostic = document.getElementById('diagnosticError');
+    const appContent = document.getElementById('appContent');
 
-            try {
-                const response = await fetch(targetUrl);
-                
-                if (!response.ok) {
-                    showDiagnosticsError(`HTTP Error ${response.status}: ${response.statusText}`, `Server was unable to find or serve '${targetUrl}'. Please check that 'gallery-data.json' is uploaded in the main repository folder.`);
-                    return;
-                }
+    try {
+        const res = await fetch('./gallery-data.json?t=' + Date.now());
+        if (!res.ok) {
+            throw new Error(`HTTP ${res.status}: Could not load gallery-data.json from GitHub.`);
+        }
+        const data = await res.json();
+        
+        let folderData = null;
+        if (Array.isArray(data)) {
+            folderData = { images: data };
+        } else if (data.images) {
+            folderData = data;
+        } else if (data.blocks && data.blocks[0]) {
+            folderData = data.blocks[0].folders ? data.blocks[0].folders[0] : data.blocks[0];
+        } else if (data.folders && data.folders[0]) {
+            folderData = data.folders[0];
+        } else {
+            folderData = data;
+        }
 
-                let textData = await response.text();
-                let data;
-                
-                try {
-                    data = JSON.parse(textData);
-                } catch (jsonErr) {
-                    showDiagnosticsError("Invalid JSON File Syntax", `The 'gallery-data.json' file exists on GitHub, but contains invalid JSON structure: ${jsonErr.message}`);
-                    return;
-                }
+        if (!folderData || !folderData.images || folderData.images.length === 0) {
+            throw new Error("gallery-data.json was loaded, but contains no images.");
+        }
 
-                // Normalizing multi-structure format exports
-                let extractedFolders = [];
-                if (data.folders && Array.isArray(data.folders)) {
-                    extractedFolders = data.folders;
-                } else if (data.blocks && Array.isArray(data.blocks)) {
-                    extractedFolders = data.blocks;
-                } else if (Array.isArray(data)) {
-                    extractedFolders = [{ id: 'block_default', title: 'UK Visit 2026', persons: [], photos: data }];
-                }
-
-                if (extractedFolders.length > 0) {
-                    state.folders = extractedFolders;
-                    renderViewer();
-                } else {
-                    showDiagnosticsError("Empty Gallery Project Data", "The 'gallery-data.json' file was loaded successfully, but it does not contain any photo records or folders.");
-                }
+        renderGalleryView(folderData);
+        if (loader) loader.style.display = 'none';
+        if (appContent) appContent.style.display = 'block';
+    } catch (err) {
+        console.error("Gallery Load Error:", err);
+        if (loader) loader.style.display = 'none';
+        if (diagnostic) {
+            diagnostic.style.display = 'block';
+            const details = document.getElementById('errorMsgDetails');
+            if (details) details.innerText = err.message;
+        }
+    }
+}
 
             } catch (err) {
                 console.error("Gallery Load Error:", err);
