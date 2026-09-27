@@ -1,19 +1,401 @@
-// ❌ FAULTY SECTION IN YOUR FILE (Lines 118–126):
-        if (loader) loader.style.display = 'none';
-        if (appContent) appContent.style.display = 'block';
-    } catch (err) {
-        console.error("Gallery Load Error:", err);
-        if (loader) loader.style.display = 'none';
-        if (diagnostic) {
-            diagnostic.style.display = 'block';
-            const details = document.getElementById('errorMsgDetails');
-            if (details) details.innerText = err.message;
-        }
-    }
-}
-
-            } catch (err) {  // 👈 Orphaned catch block causing JavaScript SyntaxError!
-                console.error("Gallery Load Error:", err);
-                showDiagnosticsError("Network / CORS Fetch Error", `Failed to retrieve 'gallery-data.json'. Details: ${err.message}`);
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>UK Visit 2026 - Photo Gallery</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        slate: { 850: '#131e32', 900: '#0f172a', 950: '#020617' },
+                        violet: { 500: '#8b5cf6', 600: '#7c3aed', 700: '#6d28d9' }
+                    }
+                }
             }
         }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0f172a; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+        .avatar-ring-selected { box-shadow: 0 0 0 3px #8b5cf6, 0 0 15px rgba(139, 92, 246, 0.6); }
+        .touch-pan-x { touch-action: pan-x; }
+        .select-none { user-select: none; -webkit-user-select: none; }
+    </style>
+</head>
+<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased flex flex-col selection:bg-violet-500 selection:text-white">
+
+    <!-- Header Customization -->
+    <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 md:px-8 py-3 flex items-center justify-between gap-3 shadow-lg">
+        <div class="flex items-center space-x-3 min-w-0">
+            <div class="bg-gradient-to-tr from-violet-600 to-indigo-500 p-2.5 rounded-2xl shadow-md shadow-violet-500/20 flex-shrink-0">
+                <i data-lucide="camera" class="w-6 h-6 text-white"></i>
+            </div>
+            <div class="truncate">
+                <h1 class="text-lg md:text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent truncate">
+                    UK Visit 2026
+                </h1>
+                <p class="text-xs text-slate-400 font-medium truncate">
+                    Photo Memory Gallery • 11 Aug - 22 Sept 2026
+                </p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-2 flex-shrink-0">
+            <span class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-violet-600/10 border border-violet-500/30 text-violet-400 text-xs font-semibold">
+                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span>Viewer Mode</span>
+            </span>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6 lg:p-8 space-y-6">
+        <div id="galleryContainer" class="space-y-6">
+            <!-- Loading State -->
+            <div id="loadingState" class="flex flex-col items-center justify-center py-20 space-y-3">
+                <div class="w-8 h-8 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
+                <p class="text-sm text-slate-400 font-medium">Loading gallery photos...</p>
+            </div>
+        </div>
+    </main>
+
+    <footer class="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
+        <p>UK Visit 2026 Photo Gallery • Shared via GitHub Pages</p>
+    </footer>
+
+    <script>
+        let state = { folders: [] };
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        window.onload = function () {
+            refreshIcons();
+            loadGalleryData();
+        };
+
+        async function loadGalleryData() {
+            try {
+                const res = await fetch('./gallery-data.json?t=' + Date.now());
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: Could not load gallery-data.json from server.`);
+                }
+                const data = await res.json();
+
+                let folderData = null;
+                if (Array.isArray(data)) {
+                    folderData = { id: 'main', title: 'UK Visit 2026', photos: data, persons: [] };
+                } else if (data.photos) {
+                    folderData = data;
+                } else if (data.blocks && data.blocks[0]) {
+                    folderData = data.blocks[0].folders ? data.blocks[0].folders[0] : data.blocks[0];
+                } else if (data.folders && data.folders[0]) {
+                    folderData = data.folders[0];
+                } else {
+                    folderData = data;
+                }
+
+                if (!folderData || !folderData.photos || folderData.photos.length === 0) {
+                    throw new Error("gallery-data.json was loaded, but contains no photo items.");
+                }
+
+                state.folders = [folderData];
+                renderViewer();
+            } catch (err) {
+                console.error("Gallery Load Error:", err);
+                showDiagnosticsError("Network / Data Parse Error", err.message);
+            }
+        }
+
+        function showDiagnosticsError(title, detail) {
+            const container = document.getElementById("galleryContainer");
+            container.innerHTML = `
+                <div class="bg-slate-900 border border-rose-500/30 rounded-2xl p-6 sm:p-8 space-y-4 shadow-2xl">
+                    <div class="flex items-center space-x-3 text-rose-400 border-b border-slate-800 pb-3">
+                        <i data-lucide="alert-triangle" class="w-7 h-7 flex-shrink-0"></i>
+                        <div>
+                            <h2 class="text-base sm:text-lg font-bold">${escapeHtml(title)}</h2>
+                            <p class="text-xs text-slate-400">Diagnostic Status Output</p>
+                        </div>
+                    </div>
+                    
+                    <p class="text-xs sm:text-sm text-slate-300 leading-relaxed bg-slate-950 p-4 rounded-xl border border-slate-800/80 font-mono">
+                        ${escapeHtml(detail)}
+                    </p>
+
+                    <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+                        <span>Expected Location: <code class="text-violet-400">https://kawan2020.github.io/UK-Visit-2026/gallery-data.json</code></span>
+                        <button onclick="location.reload()" class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-semibold transition active:scale-95 shadow-md">
+                            Retry Connection
+                        </button>
+                    </div>
+                </div>
+            `;
+            refreshIcons();
+        }
+
+        function renderViewer() {
+            const container = document.getElementById("galleryContainer");
+            container.innerHTML = '';
+
+            state.folders.forEach(folder => {
+                if (!folder.title || folder.title.startsWith("Image Folder Block")) {
+                    folder.title = "UK Visit 2026";
+                }
+
+                if (!folder.activeFilter) folder.activeFilter = 'ALL';
+                if (!folder.activePhotoIndex) folder.activePhotoIndex = 0;
+
+                const blockEl = document.createElement("section");
+                blockEl.id = `block_${folder.id}`;
+                blockEl.className = "bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl space-y-5";
+
+                blockEl.innerHTML = `
+                    <div class="border-b border-slate-800/80 pb-3">
+                        <h2 class="text-lg sm:text-xl font-bold text-slate-100">${escapeHtml(folder.title)}</h2>
+                    </div>
+
+                    <div class="space-y-2">
+                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                            <i data-lucide="users" class="w-4 h-4 text-violet-400"></i>
+                            <span>People Directory</span>
+                        </h3>
+
+                        <div class="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3 sm:p-4 min-h-[105px] overflow-hidden">
+                            <div id="avatars_${folder.id}" class="flex items-center space-x-4 overflow-x-auto pb-1 touch-pan-x"></div>
+                        </div>
+                    </div>
+
+                    <div id="carouselArea_${folder.id}" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-3"></div>
+                `;
+
+                container.appendChild(blockEl);
+                renderFolderAvatars(folder);
+                renderCarousel(folder);
+            });
+
+            refreshIcons();
+        }
+
+        function renderFolderAvatars(folder) {
+            const container = document.getElementById(`avatars_${folder.id}`);
+            if (!container) return;
+            container.innerHTML = '';
+
+            const allSelected = folder.activeFilter === 'ALL';
+            const allAvatar = document.createElement("div");
+            allAvatar.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0";
+            allAvatar.onclick = () => setFilter(folder.id, 'ALL');
+
+            allAvatar.innerHTML = `
+                <div class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-gradient-to-tr from-violet-600 to-indigo-600 text-white font-bold shadow-md transition-all active:scale-95 ${allSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700'}">
+                    <i data-lucide="grid" class="w-6 h-6"></i>
+                </div>
+                <div class="text-center">
+                    <p class="text-[11px] font-semibold ${allSelected ? 'text-violet-400' : 'text-slate-300'}">ALL</p>
+                    <p class="text-[9px] text-slate-500">${folder.photos ? folder.photos.length : 0} photos</p>
+                </div>
+            `;
+            container.appendChild(allAvatar);
+
+            if (folder.persons && Array.isArray(folder.persons)) {
+                folder.persons.forEach(person => {
+                    const isSelected = folder.activeFilter === person.id;
+                    const count = getPhotosForPerson(folder, person.id).length;
+                    if (count === 0) return;
+
+                    const avatarSrc = resolveImagePath(person.avatarUrl);
+                    const avatarEl = document.createElement("div");
+                    avatarEl.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0";
+                    avatarEl.onclick = () => setFilter(folder.id, person.id);
+
+                    avatarEl.innerHTML = `
+                        <div class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-slate-900 transition-all active:scale-95 ${isSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-violet-500'}">
+                            <img src="${avatarSrc}" alt="${escapeHtml(person.name)}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/150x150/1e293b/8b5cf6?text=Face'">
+                        </div>
+                        <div class="text-center max-w-[70px] truncate">
+                            <p class="text-[11px] font-medium truncate ${isSelected ? 'text-violet-400 font-semibold' : 'text-slate-300'}">${escapeHtml(person.name)}</p>
+                            <p class="text-[9px] text-slate-500">${count} photos</p>
+                        </div>
+                    `;
+                    container.appendChild(avatarEl);
+                });
+            }
+
+            const othersCount = getOthersPhotos(folder).length;
+            if (othersCount > 0) {
+                const othersSelected = folder.activeFilter === 'OTHERS';
+                const othersAvatar = document.createElement("div");
+                othersAvatar.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0";
+                othersAvatar.onclick = () => setFilter(folder.id, 'OTHERS');
+
+                othersAvatar.innerHTML = `
+                    <div class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-slate-800 text-slate-400 font-bold transition-all active:scale-95 ${othersSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-slate-500'}">
+                        <i data-lucide="user-minus" class="w-6 h-6"></i>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-[11px] font-medium ${othersSelected ? 'text-violet-400 font-semibold' : 'text-slate-400'}">Others</p>
+                        <p class="text-[9px] text-slate-500">${othersCount} photos</p>
+                    </div>
+                `;
+                container.appendChild(othersAvatar);
+            }
+        }
+
+        function resolveImagePath(rawPath) {
+            if (!rawPath) return '';
+            if (rawPath.startsWith('data:image/') || rawPath.startsWith('http')) return rawPath;
+            const filename = rawPath.split('/').pop();
+            return 'images/' + filename;
+        }
+
+        function getPhotosForPerson(folder, personId) {
+            if (!folder.photos) return [];
+            return folder.photos.filter(p => p.faces && p.faces.some(f => f.personId === personId));
+        }
+
+        function getOthersPhotos(folder) {
+            if (!folder.photos) return [];
+            return folder.photos.filter(p => p.faces && p.faces.some(f => f.personId === 'OTHERS'));
+        }
+
+        function setFilter(folderId, filterId) {
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) return;
+            folder.activeFilter = filterId;
+            folder.activePhotoIndex = 0;
+            renderFolderAvatars(folder);
+            renderCarousel(folder);
+            refreshIcons();
+        }
+
+        function renderCarousel(folder) {
+            const container = document.getElementById(`carouselArea_${folder.id}`);
+            if (!container) return;
+
+            let filteredPhotos = folder.photos || [];
+            let label = "All Photos";
+
+            if (folder.activeFilter === 'OTHERS') {
+                filteredPhotos = getOthersPhotos(folder);
+                label = `Others (${filteredPhotos.length})`;
+            } else if (folder.activeFilter !== 'ALL') {
+                const person = folder.persons ? folder.persons.find(p => p.id === folder.activeFilter) : null;
+                if (person) {
+                    filteredPhotos = getPhotosForPerson(folder, person.id);
+                    label = `${person.name} (${filteredPhotos.length})`;
+                }
+            }
+
+            if (filteredPhotos.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-500 py-6 text-center">No photos available for this selection.</p>`;
+                return;
+            }
+
+            if (folder.activePhotoIndex >= filteredPhotos.length) {
+                folder.activePhotoIndex = 0;
+            }
+
+            const currentPhoto = filteredPhotos[folder.activePhotoIndex];
+            const imageSrc = resolveImagePath(currentPhoto.path || currentPhoto.dataUrl || currentPhoto.name);
+
+            container.innerHTML = `
+                <div class="flex items-center justify-between pb-2 border-b border-slate-800/60">
+                    <span class="text-xs font-semibold px-2.5 py-0.5 rounded bg-violet-600/20 text-violet-400 border border-violet-500/30">
+                        ${escapeHtml(label)}
+                    </span>
+                    <span class="text-xs text-slate-400 font-mono">
+                        ${folder.activePhotoIndex + 1} / ${filteredPhotos.length}
+                    </span>
+                </div>
+
+                <div ontouchstart="handleTouchStart(event)" 
+                     ontouchend="handleTouchEnd(event, '${folder.id}')" 
+                     class="relative group flex items-center justify-center bg-slate-950 rounded-xl overflow-hidden min-h-[280px] sm:min-h-[400px] max-h-[520px] select-none">
+                    
+                    <img src="${imageSrc}" alt="${escapeHtml(currentPhoto.name)}" class="max-h-[500px] w-auto max-w-full object-contain rounded shadow-2xl" onerror="this.src='https://placehold.co/800x600/1e293b/94a3b8?text=Image+Not+Found+in+/images/'">
+
+                    <button onclick="navigateCarousel('${folder.id}', -1)" class="absolute left-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 opacity-80 group-hover:opacity-100 transition-all active:scale-90">
+                        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                    </button>
+
+                    <button onclick="navigateCarousel('${folder.id}', 1)" class="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 opacity-80 group-hover:opacity-100 transition-all active:scale-90">
+                        <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                    </button>
+
+                    <div class="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-md border border-slate-800 px-2.5 py-1 rounded-lg text-xs text-slate-300 max-w-[80%] truncate">
+                        ${escapeHtml(currentPhoto.name)}
+                    </div>
+                </div>
+
+                <div class="flex items-center space-x-2 overflow-x-auto py-1 touch-pan-x">
+                    ${filteredPhotos.map((p, idx) => {
+                        const thumbSrc = resolveImagePath(p.path || p.dataUrl || p.name);
+                        return `
+                            <div onclick="setCarouselIndex('${folder.id}',${idx})" class="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer transition-all border-2 ${idx === folder.activePhotoIndex ? 'border-violet-500 scale-105 shadow-md' : 'border-slate-800 opacity-50 hover:opacity-100'}">
+                                <img src="${thumbSrc}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/100x100/1e293b/94a3b8?text=?'">
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+            refreshIcons();
+        }
+
+        function handleTouchStart(e) {
+            touchStartX = e.changedTouches[0].screenX;
+        }
+
+        function handleTouchEnd(e, folderId) {
+            touchEndX = e.changedTouches[0].screenX;
+            const dist = touchEndX - touchStartX;
+            if (dist > 40) navigateCarousel(folderId, -1);
+            else if (dist < -40) navigateCarousel(folderId, 1);
+        }
+
+        function navigateCarousel(folderId, dir) {
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) return;
+
+            let photos = folder.photos || [];
+            if (folder.activeFilter === 'OTHERS') photos = getOthersPhotos(folder);
+            else if (folder.activeFilter !== 'ALL') photos = getPhotosForPerson(folder, folder.activeFilter);
+
+            if (photos.length === 0) return;
+            folder.activePhotoIndex = (folder.activePhotoIndex + dir + photos.length) % photos.length;
+            renderCarousel(folder);
+        }
+
+        function setCarouselIndex(folderId, idx) {
+            const folder = state.folders.find(f => f.id === folderId);
+            if (!folder) return;
+            folder.activePhotoIndex = idx;
+            renderCarousel(folder);
+        }
+
+        function refreshIcons() {
+            if (window.lucide && typeof lucide.createIcons === 'function') {
+                lucide.createIcons();
+            }
+        }
+
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
