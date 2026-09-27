@@ -62,7 +62,7 @@
     <!-- Main Container -->
     <main class="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6 lg:p-8 space-y-6">
         <div id="galleryContainer" class="space-y-6">
-            <!-- Dynamic Album Blocks rendered here -->
+            <!-- Loading State -->
             <div id="loadingState" class="flex flex-col items-center justify-center py-20 space-y-3">
                 <div class="w-8 h-8 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
                 <p class="text-sm text-slate-400 font-medium">Loading gallery photos...</p>
@@ -86,31 +86,71 @@
 
         async function loadGalleryData() {
             const container = document.getElementById("galleryContainer");
+            const targetUrl = 'gallery-data.json?t=' + Date.now();
+
             try {
-                const response = await fetch('gallery-data.json?t=' + Date.now());
-                if (!response.ok) throw new Error("File not found");
+                const response = await fetch(targetUrl);
                 
-                const data = await response.json();
-                if (data && data.folders && data.folders.length > 0) {
-                    state.folders = data.folders;
+                if (!response.ok) {
+                    showDiagnosticsError(`HTTP Error ${response.status}: ${response.statusText}`, `Server was unable to find or serve '${targetUrl}'. Please check that 'gallery-data.json' is uploaded in the main repository folder.`);
+                    return;
+                }
+
+                let textData = await response.text();
+                let data;
+                
+                try {
+                    data = JSON.parse(textData);
+                } catch (jsonErr) {
+                    showDiagnosticsError("Invalid JSON File Syntax", `The 'gallery-data.json' file exists on GitHub, but contains invalid JSON structure: ${jsonErr.message}`);
+                    return;
+                }
+
+                // Normalizing multi-structure format exports
+                let extractedFolders = [];
+                if (data.folders && Array.isArray(data.folders)) {
+                    extractedFolders = data.folders;
+                } else if (data.blocks && Array.isArray(data.blocks)) {
+                    extractedFolders = data.blocks;
+                } else if (Array.isArray(data)) {
+                    extractedFolders = [{ id: 'block_default', title: 'UK Visit 2026', persons: [], photos: data }];
+                }
+
+                if (extractedFolders.length > 0) {
+                    state.folders = extractedFolders;
                     renderViewer();
                 } else {
-                    showError("No photos found in gallery-data.json.");
+                    showDiagnosticsError("Empty Gallery Project Data", "The 'gallery-data.json' file was loaded successfully, but it does not contain any photo records or folders.");
                 }
+
             } catch (err) {
                 console.error("Gallery Load Error:", err);
-                showError("Could not load 'gallery-data.json'. Please verify file is uploaded to GitHub.");
+                showDiagnosticsError("Network / CORS Fetch Error", `Failed to retrieve 'gallery-data.json'. Details: ${err.message}`);
             }
         }
 
-        function showError(msg) {
+        function showDiagnosticsError(title, detail) {
             const container = document.getElementById("galleryContainer");
             container.innerHTML = `
-                <div class="bg-slate-900 border border-slate-800 rounded-2xl p-8 text-center space-y-3">
-                    <div class="p-3 bg-rose-500/10 text-rose-400 rounded-full w-12 h-12 mx-auto flex items-center justify-center">
-                        <i data-lucide="alert-circle" class="w-6 h-6"></i>
+                <div class="bg-slate-900 border border-rose-500/30 rounded-2xl p-6 sm:p-8 space-y-4 shadow-2xl">
+                    <div class="flex items-center space-x-3 text-rose-400 border-b border-slate-800 pb-3">
+                        <i data-lucide="alert-triangle" class="w-7 h-7 flex-shrink-0"></i>
+                        <div>
+                            <h2 class="text-base sm:text-lg font-bold">${escapeHtml(title)}</h2>
+                            <p class="text-xs text-slate-400">Diagnostic Status Output</p>
+                        </div>
                     </div>
-                    <p class="text-sm text-slate-300 font-medium">${msg}</p>
+                    
+                    <p class="text-xs sm:text-sm text-slate-300 leading-relaxed bg-slate-950 p-4 rounded-xl border border-slate-800/80 font-mono">
+                        ${escapeHtml(detail)}
+                    </p>
+
+                    <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
+                        <span>Expected Location: <code class="text-violet-400">https://kawan2020.github.io/UK-Visit-2026/gallery-data.json</code></span>
+                        <button onclick="location.reload()" class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-semibold transition active:scale-95 shadow-md">
+                            Retry Connection
+                        </button>
+                    </div>
                 </div>
             `;
             refreshIcons();
@@ -121,8 +161,8 @@
             container.innerHTML = '';
 
             state.folders.forEach(folder => {
-                // Override header title dynamically to UK Visit 2026 if default block title
-                if (folder.title.startsWith("Image Folder Block")) {
+                // Ensure header is set to UK Visit 2026
+                if (!folder.title || folder.title.startsWith("Image Folder Block")) {
                     folder.title = "UK Visit 2026";
                 }
 
@@ -147,14 +187,14 @@
 
                         <div class="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3 sm:p-4 min-h-[105px] overflow-hidden">
                             <div id="avatars_${folder.id}" class="flex items-center space-x-4 overflow-x-auto pb-1 touch-pan-x">
-                                <!-- Dynamic Circular Avatars Injected Here -->
+                                <!-- Dynamic Circular Avatars -->
                             </div>
                         </div>
                     </div>
 
                     <!-- Photo Carousel Box -->
                     <div id="carouselArea_${folder.id}" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-3">
-                        <!-- Carousel Content Injected Here -->
+                        <!-- Carousel Content -->
                     </div>
                 `;
 
@@ -189,27 +229,29 @@
             container.appendChild(allAvatar);
 
             // 2. Named People Avatars
-            folder.persons.forEach(person => {
-                const isSelected = folder.activeFilter === person.id;
-                const count = getPhotosForPerson(folder, person.id).length;
-                if (count === 0) return;
+            if (folder.persons && Array.isArray(folder.persons)) {
+                folder.persons.forEach(person => {
+                    const isSelected = folder.activeFilter === person.id;
+                    const count = getPhotosForPerson(folder, person.id).length;
+                    if (count === 0) return;
 
-                const avatarSrc = resolveImagePath(person.avatarUrl);
-                const avatarEl = document.createElement("div");
-                avatarEl.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0";
-                avatarEl.onclick = () => setFilter(folder.id, person.id);
+                    const avatarSrc = resolveImagePath(person.avatarUrl);
+                    const avatarEl = document.createElement("div");
+                    avatarEl.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0";
+                    avatarEl.onclick = () => setFilter(folder.id, person.id);
 
-                avatarEl.innerHTML = `
-                    <div class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-slate-900 transition-all active:scale-95 ${isSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-violet-500'}">
-                        <img src="${avatarSrc}" alt="${escapeHtml(person.name)}" class="w-full h-full object-cover">
-                    </div>
-                    <div class="text-center max-w-[70px] truncate">
-                        <p class="text-[11px] font-medium truncate ${isSelected ? 'text-violet-400 font-semibold' : 'text-slate-300'}">${escapeHtml(person.name)}</p>
-                        <p class="text-[9px] text-slate-500">${count} photos</p>
-                    </div>
-                `;
-                container.appendChild(avatarEl);
-            });
+                    avatarEl.innerHTML = `
+                        <div class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-slate-900 transition-all active:scale-95 ${isSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-violet-500'}">
+                            <img src="${avatarSrc}" alt="${escapeHtml(person.name)}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/150x150/1e293b/8b5cf6?text=Face'">
+                        </div>
+                        <div class="text-center max-w-[70px] truncate">
+                            <p class="text-[11px] font-medium truncate ${isSelected ? 'text-violet-400 font-semibold' : 'text-slate-300'}">${escapeHtml(person.name)}</p>
+                            <p class="text-[9px] text-slate-500">${count} photos</p>
+                        </div>
+                    `;
+                    container.appendChild(avatarEl);
+                });
+            }
 
             // 3. Others Avatar
             const othersCount = getOthersPhotos(folder).length;
@@ -235,16 +277,17 @@
         function resolveImagePath(rawPath) {
             if (!rawPath) return '';
             if (rawPath.startsWith('data:image/') || rawPath.startsWith('http')) return rawPath;
-            if (rawPath.startsWith('images/') || rawPath.startsWith('./images/')) return rawPath;
             const filename = rawPath.split('/').pop();
             return 'images/' + filename;
         }
 
         function getPhotosForPerson(folder, personId) {
+            if (!folder.photos) return [];
             return folder.photos.filter(p => p.faces && p.faces.some(f => f.personId === personId));
         }
 
         function getOthersPhotos(folder) {
+            if (!folder.photos) return [];
             return folder.photos.filter(p => p.faces && p.faces.some(f => f.personId === 'OTHERS'));
         }
 
@@ -262,14 +305,14 @@
             const container = document.getElementById(`carouselArea_${folder.id}`);
             if (!container) return;
 
-            let filteredPhotos = folder.photos;
+            let filteredPhotos = folder.photos || [];
             let label = "All Photos";
 
             if (folder.activeFilter === 'OTHERS') {
                 filteredPhotos = getOthersPhotos(folder);
                 label = `Others (${filteredPhotos.length})`;
             } else if (folder.activeFilter !== 'ALL') {
-                const person = folder.persons.find(p => p.id === folder.activeFilter);
+                const person = folder.persons ? folder.persons.find(p => p.id === folder.activeFilter) : null;
                 if (person) {
                     filteredPhotos = getPhotosForPerson(folder, person.id);
                     label = `${person.name} (${filteredPhotos.length})`;
@@ -277,7 +320,7 @@
             }
 
             if (filteredPhotos.length === 0) {
-                container.innerHTML = `<p class="text-xs text-slate-500 py-6 text-center">No photos available.</p>`;
+                container.innerHTML = `<p class="text-xs text-slate-500 py-6 text-center">No photos available for this selection.</p>`;
                 return;
             }
 
@@ -303,7 +346,7 @@
                      ontouchend="handleTouchEnd(event, '${folder.id}')" 
                      class="relative group flex items-center justify-center bg-slate-950 rounded-xl overflow-hidden min-h-[280px] sm:min-h-[400px] max-h-[520px] select-none">
                     
-                    <img src="${imageSrc}" alt="${escapeHtml(currentPhoto.name)}" class="max-h-[500px] w-auto max-w-full object-contain rounded shadow-2xl">
+                    <img src="${imageSrc}" alt="${escapeHtml(currentPhoto.name)}" class="max-h-[500px] w-auto max-w-full object-contain rounded shadow-2xl" onerror="this.src='https://placehold.co/800x600/1e293b/94a3b8?text=Image+Not+Found+in+/images/'">
 
                     <button onclick="navigateCarousel('${folder.id}', -1)" class="absolute left-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 opacity-80 group-hover:opacity-100 transition-all active:scale-90">
                         <i data-lucide="chevron-left" class="w-5 h-5"></i>
@@ -324,7 +367,7 @@
                         const thumbSrc = resolveImagePath(p.path || p.dataUrl || p.name);
                         return `
                             <div onclick="setCarouselIndex('${folder.id}', ${idx})" class="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer transition-all border-2 ${idx === folder.activePhotoIndex ? 'border-violet-500 scale-105 shadow-md' : 'border-slate-800 opacity-50 hover:opacity-100'}">
-                                <img src="${thumbSrc}" class="w-full h-full object-cover">
+                                <img src="${thumbSrc}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/100x100/1e293b/94a3b8?text=?'">
                             </div>
                         `;
                     }).join('')}
@@ -348,7 +391,7 @@
             const folder = state.folders.find(f => f.id === folderId);
             if (!folder) return;
 
-            let photos = folder.photos;
+            let photos = folder.photos || [];
             if (folder.activeFilter === 'OTHERS') photos = getOthersPhotos(folder);
             else if (folder.activeFilter !== 'ALL') photos = getPhotosForPerson(folder, folder.activeFilter);
 
