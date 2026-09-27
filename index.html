@@ -2,7 +2,7 @@
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
     <title>UK Visit 2026 - Photo Gallery</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -28,29 +28,40 @@
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
         .avatar-ring-selected { box-shadow: 0 0 0 3px #8b5cf6, 0 0 15px rgba(139, 92, 246, 0.6); }
         .touch-pan-x { touch-action: pan-x; }
+        .zoomable-img { touch-action: pan-x pan-y pinch-zoom; cursor: zoom-in; }
         .select-none { user-select: none; -webkit-user-select: none; }
+        
+        /* Compact Landscape Mobile Adjustments */
+        @media (max-height: 500px) {
+            header { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
+            .header-subtitle { display: none !important; }
+            .header-icon { padding: 0.35rem !important; }
+            .header-icon i { width: 1.125rem !important; height: 1.125rem !important; }
+            .carousel-frame { min-height: 220px !important; max-height: 60vh !important; }
+            .carousel-img { max-height: 55vh !important; }
+        }
     </style>
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased flex flex-col selection:bg-violet-500 selection:text-white">
 
-    <!-- Header Customization -->
-    <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800 px-4 md:px-8 py-3 flex items-center justify-between gap-3 shadow-lg">
-        <div class="flex items-center space-x-3 min-w-0">
-            <div class="bg-gradient-to-tr from-violet-600 to-indigo-500 p-2.5 rounded-2xl shadow-md shadow-violet-500/20 flex-shrink-0">
-                <i data-lucide="camera" class="w-6 h-6 text-white"></i>
+    <!-- Header Customization (Compact & Landscape Optimized) -->
+    <header class="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 md:px-8 py-2 sm:py-3 flex items-center justify-between gap-3 shadow-lg transition-all">
+        <div class="flex items-center space-x-2.5 min-w-0">
+            <div class="header-icon bg-gradient-to-tr from-violet-600 to-indigo-500 p-2 rounded-xl sm:rounded-2xl shadow-md shadow-violet-500/20 flex-shrink-0">
+                <i data-lucide="camera" class="w-5 h-5 sm:w-6 sm:h-6 text-white"></i>
             </div>
             <div class="truncate">
-                <h1 class="text-lg md:text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent truncate">
+                <h1 class="text-base sm:text-lg md:text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent truncate leading-tight">
                     UK Visit 2026
                 </h1>
-                <p class="text-xs text-slate-400 font-medium truncate">
+                <p class="header-subtitle text-[11px] sm:text-xs text-slate-400 font-medium truncate">
                     Photo Memory Gallery • 11 Aug - 22 Sept 2026
                 </p>
             </div>
         </div>
 
         <div class="flex items-center space-x-2 flex-shrink-0">
-            <span class="inline-flex items-center space-x-1.5 px-3 py-1 rounded-full bg-violet-600/10 border border-violet-500/30 text-violet-400 text-xs font-semibold">
+            <span class="inline-flex items-center space-x-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-violet-600/10 border border-violet-500/30 text-violet-400 text-[11px] sm:text-xs font-semibold">
                 <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
                 <span>Viewer Mode</span>
             </span>
@@ -58,7 +69,7 @@
     </header>
 
     <!-- Main Container -->
-    <main class="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6 lg:p-8 space-y-6">
+    <main class="flex-1 max-w-6xl w-full mx-auto p-2 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
         <div id="galleryContainer" class="space-y-6">
             <!-- Loading State -->
             <div id="loadingState" class="flex flex-col items-center justify-center py-20 space-y-3">
@@ -68,7 +79,15 @@
         </div>
     </main>
 
-    <footer class="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
+    <!-- Fullscreen Zoom Lightbox Modal -->
+    <div id="zoomModal" onclick="closeZoomModal()" class="fixed inset-0 z-50 bg-black/95 hidden flex items-center justify-center p-2 backdrop-blur-md cursor-zoom-out">
+        <button onclick="closeZoomModal()" class="absolute top-4 right-4 z-50 p-3 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white border border-slate-700">
+            <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+        <img id="zoomModalImg" src="" class="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-200 zoomable-img">
+    </div>
+
+    <footer class="border-t border-slate-800/80 py-3 text-center text-xs text-slate-500">
         <p>UK Visit 2026 Photo Gallery • Shared via GitHub Pages</p>
     </footer>
 
@@ -156,11 +175,11 @@
 
                 const blockEl = document.createElement("section");
                 blockEl.id = `block_${folder.id}`;
-                blockEl.className = "bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-xl space-y-5";
+                blockEl.className = "bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-3 sm:p-6 shadow-xl space-y-4 sm:space-y-5";
 
                 blockEl.innerHTML = `
-                    <div class="border-b border-slate-800/80 pb-3">
-                        <h2 class="text-lg sm:text-xl font-bold text-slate-100">${escapeHtml(folder.title)}</h2>
+                    <div class="border-b border-slate-800/80 pb-2.5">
+                        <h2 class="text-base sm:text-xl font-bold text-slate-100">${escapeHtml(folder.title)}</h2>
                     </div>
 
                     <div class="space-y-2">
@@ -169,12 +188,12 @@
                             <span>People Directory</span>
                         </h3>
 
-                        <div class="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-3 sm:p-4 min-h-[105px] overflow-hidden">
-                            <div id="avatars_${folder.id}" class="flex items-center space-x-4 overflow-x-auto pb-1 touch-pan-x"></div>
+                        <div class="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-2.5 sm:p-4 min-h-[95px] sm:min-h-[105px] overflow-hidden">
+                            <div id="avatars_${folder.id}" class="flex items-center space-x-3 sm:space-x-4 overflow-x-auto pb-1 touch-pan-x"></div>
                         </div>
                     </div>
 
-                    <div id="carouselArea_${folder.id}" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 sm:p-4 space-y-3"></div>
+                    <div id="carouselArea_${folder.id}" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-2.5 sm:p-4 space-y-3"></div>
                 `;
 
                 container.appendChild(blockEl);
@@ -196,12 +215,12 @@
             allAvatar.onclick = () => setFilter(folder.id, 'ALL');
 
             allAvatar.innerHTML = `
-                <div class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-gradient-to-tr from-violet-600 to-indigo-600 text-white font-bold shadow-md transition-all active:scale-95 ${allSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700'}">
-                    <i data-lucide="grid" class="w-6 h-6"></i>
+                <div class="relative w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-gradient-to-tr from-violet-600 to-indigo-600 text-white font-bold shadow-md transition-all active:scale-95 ${allSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700'}">
+                    <i data-lucide="grid" class="w-5 h-5 sm:w-6 sm:h-6"></i>
                 </div>
                 <div class="text-center">
-                    <p class="text-[11px] font-semibold ${allSelected ? 'text-violet-400' : 'text-slate-300'}">ALL</p>
-                    <p class="text-[9px] text-slate-500">${folder.photos ? folder.photos.length : 0} photos</p>
+                    <p class="text-[10px] sm:text-[11px] font-semibold ${allSelected ? 'text-violet-400' : 'text-slate-300'}">ALL</p>
+                    <p class="text-[8px] sm:text-[9px] text-slate-500">${folder.photos ? folder.photos.length : 0} photos</p>
                 </div>
             `;
             container.appendChild(allAvatar);
@@ -218,12 +237,12 @@
                     avatarEl.onclick = () => setFilter(folder.id, person.id);
 
                     avatarEl.innerHTML = `
-                        <div class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-slate-900 transition-all active:scale-95 ${isSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-violet-500'}">
+                        <div class="relative w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-slate-900 transition-all active:scale-95 ${isSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-violet-500'}">
                             <img src="${avatarSrc}" alt="${escapeHtml(person.name)}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/150x150/1e293b/8b5cf6?text=Face'">
                         </div>
-                        <div class="text-center max-w-[70px] truncate">
-                            <p class="text-[11px] font-medium truncate ${isSelected ? 'text-violet-400 font-semibold' : 'text-slate-300'}">${escapeHtml(person.name)}</p>
-                            <p class="text-[9px] text-slate-500">${count} photos</p>
+                        <div class="text-center max-w-[65px] sm:max-w-[70px] truncate">
+                            <p class="text-[10px] sm:text-[11px] font-medium truncate ${isSelected ? 'text-violet-400 font-semibold' : 'text-slate-300'}">${escapeHtml(person.name)}</p>
+                            <p class="text-[8px] sm:text-[9px] text-slate-500">${count} photos</p>
                         </div>
                     `;
                     container.appendChild(avatarEl);
@@ -238,12 +257,12 @@
                 othersAvatar.onclick = () => setFilter(folder.id, 'OTHERS');
 
                 othersAvatar.innerHTML = `
-                    <div class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-slate-800 text-slate-400 font-bold transition-all active:scale-95 ${othersSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-slate-500'}">
-                        <i data-lucide="user-minus" class="w-6 h-6"></i>
+                    <div class="relative w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-slate-800 text-slate-400 font-bold transition-all active:scale-95 ${othersSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-slate-500'}">
+                        <i data-lucide="user-minus" class="w-5 h-5 sm:w-6 sm:h-6"></i>
                     </div>
                     <div class="text-center">
-                        <p class="text-[11px] font-medium ${othersSelected ? 'text-violet-400 font-semibold' : 'text-slate-400'}">Others</p>
-                        <p class="text-[9px] text-slate-500">${othersCount} photos</p>
+                        <p class="text-[10px] sm:text-[11px] font-medium ${othersSelected ? 'text-violet-400 font-semibold' : 'text-slate-400'}">Others</p>
+                        <p class="text-[8px] sm:text-[9px] text-slate-500">${othersCount} photos</p>
                     </div>
                 `;
                 container.appendChild(othersAvatar);
@@ -319,19 +338,22 @@
 
                 <div ontouchstart="handleTouchStart(event)" 
                      ontouchend="handleTouchEnd(event, '${folder.id}')" 
-                     class="relative group flex items-center justify-center bg-slate-950 rounded-xl overflow-hidden min-h-[280px] sm:min-h-[400px] max-h-[520px] select-none">
+                     class="carousel-frame relative group flex items-center justify-center bg-slate-950 rounded-xl overflow-hidden min-h-[260px] sm:min-h-[380px] max-h-[475px] select-none">
                     
-                    <img src="${imageSrc}" alt="${escapeHtml(currentPhoto.name)}" class="max-h-[500px] w-auto max-w-full object-contain rounded shadow-2xl" onerror="this.src='https://placehold.co/800x600/1e293b/94a3b8?text=Image+Not+Found+in+/images/'">
+                    <img src="${imageSrc}" alt="${escapeHtml(currentPhoto.name)}" 
+                         onclick="openZoomModal('${imageSrc}')"
+                         class="carousel-img zoomable-img max-h-[475px] w-auto max-w-full object-contain rounded shadow-2xl" 
+                         onerror="this.src='https://placehold.co/800x600/1e293b/94a3b8?text=Image+Not+Found+in+/images/'">
 
-                    <button onclick="navigateCarousel('${folder.id}', -1)" class="absolute left-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 opacity-80 group-hover:opacity-100 transition-all active:scale-90">
-                        <i data-lucide="chevron-left" class="w-5 h-5"></i>
+                    <button onclick="navigateCarousel('${folder.id}', -1)" class="absolute left-2 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 opacity-80 group-hover:opacity-100 transition-all active:scale-90">
+                        <i data-lucide="chevron-left" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                     </button>
 
-                    <button onclick="navigateCarousel('${folder.id}', 1)" class="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 opacity-80 group-hover:opacity-100 transition-all active:scale-90">
-                        <i data-lucide="chevron-right" class="w-5 h-5"></i>
+                    <button onclick="navigateCarousel('${folder.id}', 1)" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 opacity-80 group-hover:opacity-100 transition-all active:scale-90">
+                        <i data-lucide="chevron-right" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                     </button>
 
-                    <div class="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-md border border-slate-800 px-2.5 py-1 rounded-lg text-xs text-slate-300 max-w-[80%] truncate">
+                    <div class="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-md border border-slate-800 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-xs text-slate-300 max-w-[80%] truncate">
                         ${escapeHtml(currentPhoto.name)}
                     </div>
                 </div>
@@ -340,7 +362,7 @@
                     ${filteredPhotos.map((p, idx) => {
                         const thumbSrc = resolveImagePath(p.path || p.dataUrl || p.name);
                         return `
-                            <div onclick="setCarouselIndex('${folder.id}',${idx})" class="relative w-14 h-14 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer transition-all border-2 ${idx === folder.activePhotoIndex ? 'border-violet-500 scale-105 shadow-md' : 'border-slate-800 opacity-50 hover:opacity-100'}">
+                            <div onclick="setCarouselIndex('${folder.id}',${idx})" class="relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer transition-all border-2 ${idx === folder.activePhotoIndex ? 'border-violet-500 scale-105 shadow-md' : 'border-slate-800 opacity-50 hover:opacity-100'}">
                                 <img src="${thumbSrc}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/100x100/1e293b/94a3b8?text=?'">
                             </div>
                         `;
@@ -348,6 +370,20 @@
                 </div>
             `;
             refreshIcons();
+        }
+
+        function openZoomModal(src) {
+            const modal = document.getElementById('zoomModal');
+            const img = document.getElementById('zoomModalImg');
+            if (modal && img) {
+                img.src = src;
+                modal.classList.remove('hidden');
+            }
+        }
+
+        function closeZoomModal() {
+            const modal = document.getElementById('zoomModal');
+            if (modal) modal.classList.add('hidden');
         }
 
         function handleTouchStart(e) {
