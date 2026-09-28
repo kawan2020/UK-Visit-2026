@@ -3,11 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=5.0, user-scalable=yes">
-    <title>UK Visit 2026 - Photo Gallery</title>
+    <title>Good Day - Photo Gallery & Admin Studio</title>
     <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- face-api.js for AI face recognition -->
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
     <script>
         tailwind.config = {
             darkMode: 'class',
@@ -26,245 +28,1001 @@
         ::-webkit-scrollbar-track { background: #0f172a; }
         ::-webkit-scrollbar-thumb { background: #334155; border-radius: 4px; }
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
-        .avatar-ring-selected { box-shadow: 0 0 0 3px #8b5cf6, 0 0 15px rgba(139, 92, 246, 0.6); }
+        .avatar-ring-selected { ring-width: 4px; --tw-ring-color: #8b5cf6; box-shadow: 0 0 15px rgba(139, 92, 246, 0.5); }
         .touch-pan-x { touch-action: pan-x; }
         .zoomable-img { touch-action: pan-x pan-y pinch-zoom; cursor: zoom-in; }
         .select-none { user-select: none; -webkit-user-select: none; }
-        
-        /* Compact Landscape Mobile Adjustments */
-        @media (max-height: 500px) {
-            header { padding-top: 0.35rem !important; padding-bottom: 0.35rem !important; }
-            .header-subtitle { display: none !important; }
-            .header-icon { padding: 0.35rem !important; }
-            .header-icon i { width: 1.125rem !important; height: 1.125rem !important; }
-            .carousel-frame { min-height: 220px !important; max-height: 60vh !important; }
-            .carousel-img { max-height: 55vh !important; }
-        }
     </style>
 </head>
-<body class="bg-slate-950 text-slate-100 min-h-screen font-sans antialiased flex flex-col selection:bg-violet-500 selection:text-white">
+<body class="bg-slate-900 text-slate-100 min-h-screen font-sans antialiased flex flex-col selection:bg-violet-500 selection:text-white">
 
-    <!-- Header Customization (Compact & Landscape Optimized) -->
-    <header class="sticky top-0 z-40 bg-slate-900/95 backdrop-blur-md border-b border-slate-800 px-3 md:px-8 py-2 sm:py-3 flex items-center justify-between gap-3 shadow-lg transition-all">
-        <div class="flex items-center space-x-2.5 min-w-0">
-            <div class="header-icon bg-gradient-to-tr from-violet-600 to-indigo-500 p-2 rounded-xl sm:rounded-2xl shadow-md shadow-violet-500/20 flex-shrink-0">
+    <!-- Header Customization with Passcode-Protected Mode Switcher -->
+    <header class="sticky top-0 z-40 bg-slate-900/90 backdrop-blur-md border-b border-slate-800/80 px-4 md:px-10 py-3 flex items-center justify-between gap-4 shadow-xl transition-all">
+        <div class="flex items-center space-x-3 min-w-0">
+            <div class="bg-gradient-to-tr from-violet-600 via-indigo-600 to-amber-500 p-2.5 rounded-2xl shadow-lg shadow-violet-500/20 flex-shrink-0">
                 <i data-lucide="camera" class="w-5 h-5 sm:w-6 sm:h-6 text-white"></i>
             </div>
             <div class="truncate">
-                <h1 class="text-base sm:text-lg md:text-2xl font-bold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent truncate leading-tight">
-                    UK Visit 2026
+                <h1 id="mainHeaderTitle" class="text-base sm:text-xl md:text-2xl font-extrabold bg-gradient-to-r from-white via-slate-200 to-slate-400 bg-clip-text text-transparent truncate leading-tight">
+                    Good Day
                 </h1>
-                <p class="header-subtitle text-[11px] sm:text-xs text-slate-400 font-medium truncate">
-                    Photo Memory Gallery • 11 Aug - 22 Sept 2026
+                <p id="mainHeaderSubtitle" class="header-subtitle text-[11px] sm:text-xs text-slate-400 font-medium truncate">
+                    Photo Gallery • 2026
                 </p>
             </div>
         </div>
 
         <div class="flex items-center space-x-2 flex-shrink-0">
-            <span class="inline-flex items-center space-x-1.5 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-full bg-violet-600/10 border border-violet-500/30 text-violet-400 text-[11px] sm:text-xs font-semibold">
-                <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span>Viewer Mode</span>
-            </span>
+            <button id="modeToggleBtn" onclick="toggleAppMode()" class="inline-flex items-center space-x-2 px-3.5 py-1.5 rounded-full bg-slate-800/80 border border-violet-500/40 hover:border-violet-400 hover:bg-violet-600/20 text-violet-300 text-xs font-bold transition-all active:scale-95 shadow-md">
+                <i id="modeIcon" data-lucide="eye" class="w-4 h-4 text-violet-400"></i>
+                <span id="modeLabel">Viewer Mode</span>
+            </button>
         </div>
     </header>
 
-    <!-- Main Container -->
-    <main class="flex-1 max-w-6xl w-full mx-auto p-2 sm:p-6 lg:p-8 space-y-4 sm:space-y-6">
-        <div id="galleryContainer" class="space-y-6">
-            <!-- Loading State -->
-            <div id="loadingState" class="flex flex-col items-center justify-center py-20 space-y-3">
-                <div class="w-8 h-8 border-4 border-violet-500 border-t-transparent rounded-full animate-spin"></div>
-                <p class="text-sm text-slate-400 font-medium">Loading gallery photos...</p>
+    <!-- Main Content Container (Expanded for Ultra-wide Displays) -->
+    <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-6 lg:p-8 space-y-6">
+        
+        <!-- DEVELOPER / ADMIN PANEL -->
+        <section id="developerPanel" class="hidden bg-gradient-to-b from-slate-900/95 to-slate-950/95 border border-violet-500/30 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl space-y-6 backdrop-blur-md">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between border-b border-slate-800/80 pb-4 gap-4">
+                <div class="flex items-center space-x-3">
+                    <div class="p-2.5 rounded-2xl bg-violet-600/20 border border-violet-500/30 text-violet-400 shadow-inner">
+                        <i data-lucide="wrench" class="w-5 h-5"></i>
+                    </div>
+                    <div>
+                        <h2 class="text-base sm:text-lg font-bold text-white tracking-wide">Developer Studio</h2>
+                        <p class="text-xs text-slate-400">Manage titles, upload images, run AI face recognition, and export gallery-data.json</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-2 w-full sm:w-auto">
+                    <button onclick="undoLastAction()" class="px-3.5 py-2 bg-slate-800/90 hover:bg-slate-700/90 text-slate-200 border border-slate-700 rounded-xl font-semibold text-xs flex items-center justify-center space-x-1.5 shadow-md active:scale-95 transition" title="Undo (Ctrl+Z)">
+                        <i data-lucide="undo-2" class="w-4 h-4 text-amber-400"></i>
+                        <span>Undo (Ctrl+Z)</span>
+                    </button>
+                    <button onclick="startFreshProject()" class="px-3.5 py-2 bg-rose-600/20 hover:bg-rose-600/30 text-rose-300 border border-rose-500/40 rounded-xl font-semibold text-xs flex items-center justify-center space-x-1.5 shadow-md active:scale-95 transition">
+                        <i data-lucide="sparkles" class="w-4 h-4 text-rose-400"></i>
+                        <span>Start Fresh</span>
+                    </button>
+                    <button onclick="exportGalleryJson()" class="px-4 py-2 bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-500 hover:to-indigo-500 text-white rounded-xl font-semibold text-xs flex items-center justify-center space-x-1.5 shadow-lg active:scale-95 transition">
+                        <i data-lucide="download" class="w-4 h-4"></i>
+                        <span>Export JSON</span>
+                    </button>
+                </div>
             </div>
-        </div>
+
+            <!-- Title Edit Box -->
+            <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-inner">
+                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                    <i data-lucide="edit-3" class="w-4 h-4 text-violet-400"></i>
+                    <span>Edit Gallery Title & Subtitle</span>
+                </h3>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1 font-medium">Header Title</label>
+                        <input type="text" id="editTitleInput" oninput="updateHeaderTitles()" placeholder="Good Day" class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-violet-500 transition-all">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1 font-medium">Subtitle / Sub-Wording</label>
+                        <input type="text" id="editSubtitleInput" oninput="updateHeaderTitles()" placeholder="Photo Gallery • 2026" class="w-full bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-violet-500 transition-all">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Image Upload & AI Scan Box -->
+            <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-3 shadow-inner">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                        <i data-lucide="folder-plus" class="w-4 h-4 text-violet-400"></i>
+                        <span>Load Image Folder & AI Scan</span>
+                    </h3>
+                    <button onclick="runAiScanOnCurrentPhotos()" id="aiScanBtn" class="px-4 py-2 bg-gradient-to-r from-amber-500 to-violet-600 hover:from-amber-400 hover:to-violet-500 text-white rounded-xl text-xs font-bold shadow-md active:scale-95 transition flex items-center space-x-2">
+                        <i data-lucide="cpu" class="w-4 h-4"></i>
+                        <span>Run AI Face Scan</span>
+                    </button>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1 font-medium">Select Local Photo Files</label>
+                        <input type="file" id="imageFileInput" multiple accept="image/*" onchange="handleImageUpload(event)" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-violet-600/20 file:text-violet-300 hover:file:bg-violet-600/30 cursor-pointer">
+                    </div>
+                    <div>
+                        <label class="block text-[11px] text-slate-400 mb-1 font-medium">Import Existing JSON</label>
+                        <input type="file" id="jsonFileInput" accept=".json" onchange="handleJsonImport(event)" class="block w-full text-xs text-slate-400 file:mr-3 file:py-2 file:px-3 file:rounded-xl file:border-0 file:text-xs file:font-semibold file:bg-violet-600/20 file:text-violet-300 hover:file:bg-violet-600/30 cursor-pointer">
+                    </div>
+                </div>
+
+                <!-- AI Scan Progress Bar -->
+                <div id="aiProgressBox" class="hidden bg-slate-900 border border-violet-500/40 rounded-xl p-3.5 space-y-2.5">
+                    <div class="flex items-center justify-between text-xs">
+                        <span id="aiProgressStatus" class="font-semibold text-violet-300 flex items-center space-x-2">
+                            <i data-lucide="loader-2" class="w-4 h-4 animate-spin text-amber-400"></i>
+                            <span>Initializing AI Neural Models...</span>
+                        </span>
+                        <span id="aiProgressPercent" class="font-mono text-amber-400 font-bold">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-950 rounded-full h-2.5 overflow-hidden border border-slate-800">
+                        <div id="aiProgressBar" class="bg-gradient-to-r from-violet-500 via-amber-400 to-emerald-400 h-2.5 rounded-full transition-all duration-300" style="width: 0%"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Manage People Tags -->
+            <div class="bg-slate-950/80 border border-slate-800 rounded-2xl p-4 space-y-4 shadow-inner">
+                <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center space-x-1.5">
+                    <i data-lucide="user-plus" class="w-4 h-4 text-violet-400"></i>
+                    <span>Manage People Tags & Avatars</span>
+                </h3>
+                
+                <div class="flex flex-col sm:flex-row gap-2">
+                    <input type="text" id="newPersonName" placeholder="Enter person name (e.g., Alex)..." class="flex-1 bg-slate-900 border border-slate-700/80 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-violet-500 transition-all">
+                    <button onclick="addNewPerson()" class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-semibold active:scale-95 transition shadow-md">Add Person Tag</button>
+                </div>
+
+                <div id="peopleManagerList" class="space-y-2 pt-2 border-t border-slate-800/80"></div>
+            </div>
+        </section>
+
+        <!-- GALLERY SECTION -->
+        <div id="galleryContainer" class="space-y-6"></div>
     </main>
 
-    <!-- Fullscreen Zoom Lightbox Modal -->
-    <div id="zoomModal" onclick="closeZoomModal()" class="fixed inset-0 z-50 bg-black/95 hidden flex items-center justify-center p-2 backdrop-blur-md cursor-zoom-out">
-        <button onclick="closeZoomModal()" class="absolute top-4 right-4 z-50 p-3 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white border border-slate-700">
-            <i data-lucide="x" class="w-6 h-6"></i>
-        </button>
-        <img id="zoomModalImg" src="" class="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-200 zoomable-img">
+    <!-- AI Tagging Modal -->
+    <div id="aiTagModal" class="fixed inset-0 z-50 bg-black/90 hidden flex flex-col items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-slate-900 border border-violet-500/40 rounded-2xl p-5 sm:p-6 max-w-sm w-full space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                    <i data-lucide="sparkles" class="w-4 h-4 text-amber-400"></i>
+                    <span>AI Face Detected! Assign Tag</span>
+                </h3>
+                <button onclick="closeAiTagModal()" class="text-slate-400 hover:text-white p-1 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="flex flex-col items-center space-y-3 py-2">
+                <div class="w-28 h-28 rounded-full overflow-hidden border-2 border-amber-400 shadow-2xl bg-slate-950 flex items-center justify-center">
+                    <canvas id="detectedFaceCanvas" class="w-full h-full object-cover"></canvas>
+                </div>
+                <p id="aiTagModalPhotoName" class="text-[11px] font-mono text-slate-400 text-center truncate max-w-full"></p>
+            </div>
+
+            <div class="space-y-2">
+                <label class="block text-xs font-semibold text-slate-300">Assign to existing person tag:</label>
+                <div id="aiTagModalPersonButtons" class="flex flex-wrap gap-2 max-h-36 overflow-y-auto p-1"></div>
+            </div>
+
+            <div class="border-t border-slate-800 pt-3 space-y-2">
+                <label class="block text-xs font-semibold text-slate-300">Or create a new person tag:</label>
+                <div class="flex items-center space-x-2">
+                    <input type="text" id="aiTagModalNewPerson" placeholder="New Person Name..." class="flex-1 bg-slate-950 border border-slate-700 rounded-xl px-3 py-1.5 text-xs text-white focus:outline-none focus:border-violet-500">
+                    <button onclick="createAndAssignAiFaceTag()" class="px-3.5 py-1.5 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-semibold active:scale-95 transition">Assign</button>
+                </div>
+            </div>
+
+            <div class="flex justify-end pt-2">
+                <button onclick="skipAiFaceTag()" class="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-slate-200 rounded-xl text-xs font-semibold transition">Skip Face</button>
+            </div>
+        </div>
     </div>
 
-    <!-- Customer Footer
-    <footer class="border-t border-slate-800/80 py-3 text-center text-xs text-slate-500">
-        <p>UK Visit 2026 Photo Gallery • Shared via GitHub Pages</p>
+    <!-- Crop / Replace Avatar Modal -->
+    <div id="cropModal" class="fixed inset-0 z-50 bg-black/90 hidden flex flex-col items-center justify-center p-4 backdrop-blur-md">
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-4 sm:p-6 max-w-md w-full space-y-4 shadow-2xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3">
+                <h3 class="text-sm font-bold text-white flex items-center space-x-2">
+                    <i data-lucide="crop" class="w-4 h-4 text-violet-400"></i>
+                    <span>Set / Crop Face Avatar (<span id="cropPersonName" class="text-violet-400"></span>)</span>
+                </h3>
+                <button onclick="closeCropModal()" class="text-slate-400 hover:text-white p-1 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="relative w-full h-64 bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center border border-slate-800 shadow-inner">
+                <canvas id="cropCanvas" class="max-w-full max-h-full object-contain cursor-grab active:cursor-grabbing"></canvas>
+                <div class="absolute inset-0 pointer-events-none border-2 border-dashed border-violet-500/60 rounded-full my-auto mx-auto w-44 h-44 shadow-[0_0_0_9999px_rgba(15,23,42,0.75)]"></div>
+            </div>
+
+            <div class="space-y-2 text-xs text-slate-400">
+                <div class="flex items-center justify-between">
+                    <span class="font-medium">Zoom Level:</span>
+                    <input type="range" id="cropZoom" min="0.1" max="3" step="0.02" value="0.5" oninput="drawCropCanvas()" class="w-3/4 accent-violet-500 cursor-pointer">
+                </div>
+                <p class="text-[10px] text-slate-500 text-center">Drag image to align face inside circle</p>
+            </div>
+
+            <div class="flex items-center justify-between pt-2 border-t border-slate-800">
+                <label class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl text-xs font-semibold cursor-pointer transition">
+                    Upload Avatar Image
+                    <input type="file" accept="image/*" onchange="uploadDirectAvatarFile(event)" class="hidden">
+                </label>
+
+                <div class="flex items-center space-x-2">
+                    <button onclick="closeCropModal()" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-semibold transition">Cancel</button>
+                    <button onclick="saveCroppedAvatar()" class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl text-xs font-semibold shadow-md active:scale-95 transition">Save Avatar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Fullscreen Lightbox Modal -->
+    <div id="zoomModal" onclick="closeZoomModal()" class="fixed inset-0 z-50 bg-black/95 hidden flex items-center justify-center p-2 backdrop-blur-md cursor-zoom-out">
+        <button onclick="closeZoomModal()" class="absolute top-4 right-4 z-50 p-3 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white border border-slate-700 transition">
+            <i data-lucide="x" class="w-6 h-6"></i>
+        </button>
+        <img id="zoomModalImg" src="" class="max-w-full max-h-full object-contain rounded-xl shadow-2xl transition-transform duration-200 zoomable-img">
+    </div>
+
+    <!-- Custom Footer 
+    <footer class="border-t border-slate-800/80 py-4 text-center text-xs text-slate-500">
+        <p>Good Day Photo Gallery • Memory Collection 2026</p>
     </footer>
-    -->
-    
+    -->	
     <script>
-        let state = { folders: [] };
+        let currentMode = 'VIEWER';
+        let aiModelsLoaded = false;
+        
+        let state = {
+            id: 'main',
+            title: 'Good Day',
+            subtitle: 'Photo Gallery • 2026',
+            persons: [],
+            photos: [],
+            activeFilter: 'ALL',
+            activePhotoIndex: 0
+        };
+
+        let historyStack = [];
+
+        function saveHistoryState() {
+            if (historyStack.length > 20) historyStack.shift();
+            historyStack.push(JSON.stringify(state));
+        }
+
+        function undoLastAction() {
+            if (historyStack.length === 0) {
+                alert("Nothing to undo!");
+                return;
+            }
+            const previousState = JSON.parse(historyStack.pop());
+            state = previousState;
+            updateHeaderTitles();
+            renderGallery();
+        }
+
+        document.addEventListener('keydown', function(e) {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z') {
+                e.preventDefault();
+                undoLastAction();
+            }
+        });
+
+        let currentCropData = { personId: null, photoSrc: null, imgObj: null, posX: 0, posY: 0, isDragging: false, startX: 0, startY: 0 };
+        let activeAiTagData = { photo: null, detection: null, cropDataUrl: null };
         let touchStartX = 0;
         let touchEndX = 0;
 
         window.onload = function () {
             refreshIcons();
             loadGalleryData();
+            setupCropCanvasEvents();
         };
+
+        async function loadAiModels() {
+            if (aiModelsLoaded) return true;
+            updateAiProgress(5, "Downloading AI Face Recognition Neural Models...");
+            try {
+                const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model';
+                await faceapi.nets.ssdMobilenetv1.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                aiModelsLoaded = true;
+                return true;
+            } catch (err) {
+                console.error("AI Model Loading Error:", err);
+                updateAiProgress(100, "Error loading AI models: " + err.message);
+                return false;
+            }
+        }
+
+        async function runAiScanOnCurrentPhotos() {
+            if (!state.photos || state.photos.length === 0) {
+                alert("Please select or upload photo files first!");
+                return;
+            }
+
+            saveHistoryState();
+
+            const progressBox = document.getElementById('aiProgressBox');
+            if (progressBox) progressBox.classList.remove('hidden');
+
+            updateAiProgress(0, "Initializing AI Neural Engine...");
+            const success = await loadAiModels();
+            if (!success) return;
+
+            const total = state.photos.length;
+            let unassignedDetections = [];
+
+            for (let i = 0; i < total; i++) {
+                const photo = state.photos[i];
+                const pct = Math.round(((i + 1) / total) * 100);
+                updateAiProgress(pct, `Scanning photo ${i + 1} of ${total}: ${photo.name}`);
+
+                try {
+                    const imgUrl = photo.dataUrl || resolveImagePath(photo.path || photo.name);
+                    const img = await faceapi.fetchImage(imgUrl);
+                    const detections = await faceapi.detectAllFaces(img).withFaceLandmarks().withFaceDescriptors();
+
+                    if (detections && detections.length > 0) {
+                        if (!photo.faces) photo.faces = [];
+                        detections.forEach(det => {
+                            let matchedPersonId = 'OTHERS';
+                            let bestDistance = 0.55;
+
+                            if (state.persons && state.persons.length > 0) {
+                                state.persons.forEach(person => {
+                                    if (person.descriptor) {
+                                        const dist = faceapi.euclideanDistance(det.descriptor, new Float32Array(person.descriptor));
+                                        if (dist < bestDistance) {
+                                            bestDistance = dist;
+                                            matchedPersonId = person.id;
+                                        }
+                                    }
+                                });
+                            }
+
+                            if (matchedPersonId !== 'OTHERS') {
+                                if (!photo.faces.some(f => f.personId === matchedPersonId)) {
+                                    photo.faces.push({ personId: matchedPersonId, descriptor: Array.from(det.descriptor) });
+                                }
+                            } else {
+                                const alreadyHandled = photo.faces.some(f => f.descriptor && isSameDescriptor(f.descriptor, det.descriptor));
+                                if (!alreadyHandled) {
+                                    unassignedDetections.push({ photo: photo, detection: det, img: img });
+                                }
+                            }
+                        });
+                    }
+                } catch (e) {
+                    console.log("Photo scanning error:", e);
+                }
+            }
+
+            updateAiProgress(100, `AI Scan Complete! Found ${unassignedDetections.length} faces needing tag assignment.`);
+            renderGallery();
+            
+            setTimeout(() => {
+                if (progressBox) progressBox.classList.add('hidden');
+                if (unassignedDetections.length > 0) {
+                    promptNextUnassignedAiFace(unassignedDetections);
+                }
+            }, 1000);
+        }
+
+        function isSameDescriptor(desc1, desc2) {
+            if (!desc1 || !desc2) return false;
+            const dist = faceapi.euclideanDistance(new Float32Array(desc1), new Float32Array(desc2));
+            return dist < 0.2;
+        }
+
+        function promptNextUnassignedAiFace(queue) {
+            if (!queue || queue.length === 0) return;
+            const item = queue.shift();
+            
+            const box = item.detection.detection.box;
+            const canvas = document.getElementById('detectedFaceCanvas');
+            canvas.width = 120;
+            canvas.height = 120;
+            const ctx = canvas.getContext('2d');
+
+            ctx.drawImage(item.img, box.x, box.y, box.width, box.height, 0, 0, 120, 120);
+            const cropDataUrl = canvas.toDataURL('image/jpeg');
+
+            activeAiTagData = { photo: item.photo, detection: item.detection, cropDataUrl: cropDataUrl, queue: queue };
+
+            document.getElementById('aiTagModalPhotoName').innerText = item.photo.name;
+
+            const btnContainer = document.getElementById('aiTagModalPersonButtons');
+            if (state.persons && state.persons.length > 0) {
+                btnContainer.innerHTML = state.persons.map(p => `
+                    <button onclick="assignAiFaceToPerson('${p.id}')" class="px-3 py-1.5 bg-slate-800 hover:bg-violet-600 text-slate-200 hover:text-white rounded-xl text-xs font-semibold transition active:scale-95">
+                        ${escapeHtml(p.name)}
+                    </button>
+                `).join('');
+            } else {
+                btnContainer.innerHTML = `<p class="text-xs text-slate-500">No person tags yet. Create one below!</p>`;
+            }
+
+            document.getElementById('aiTagModal').classList.remove('hidden');
+        }
+
+        function assignAiFaceToPerson(personId) {
+            if (!activeAiTagData.photo) return;
+            
+            saveHistoryState();
+            const photo = activeAiTagData.photo;
+            const person = state.persons.find(p => p.id === personId);
+
+            if (!photo.faces) photo.faces = [];
+            photo.faces = photo.faces.filter(f => f.personId !== 'OTHERS');
+            photo.faces.push({ personId: personId, descriptor: Array.from(activeAiTagData.detection.descriptor) });
+
+            if (person && !person.dataUrl) {
+                person.dataUrl = activeAiTagData.cropDataUrl;
+                person.descriptor = Array.from(activeAiTagData.detection.descriptor);
+            }
+
+            closeAiTagModal();
+            renderGallery();
+
+            if (activeAiTagData.queue && activeAiTagData.queue.length > 0) {
+                setTimeout(() => promptNextUnassignedAiFace(activeAiTagData.queue), 200);
+            }
+        }
+
+        function createAndAssignAiFaceTag() {
+            const nameInput = document.getElementById('aiTagModalNewPerson');
+            const name = nameInput ? nameInput.value.trim() : '';
+            if (!name) return;
+
+            saveHistoryState();
+            const personId = 'p_' + Date.now();
+            const newPerson = {
+                id: personId,
+                name: name,
+                dataUrl: activeAiTagData.cropDataUrl,
+                avatarUrl: 'images/' + name.toLowerCase().replace(/\s+/g, '') + '_avatar.jpg',
+                descriptor: Array.from(activeAiTagData.detection.descriptor)
+            };
+
+            if (!state.persons) state.persons = [];
+            state.persons.push(newPerson);
+
+            if (nameInput) nameInput.value = '';
+            assignAiFaceToPerson(personId);
+        }
+
+        function skipAiFaceTag() {
+            if (activeAiTagData.photo && activeAiTagData.detection) {
+                const photo = activeAiTagData.photo;
+                if (!photo.faces) photo.faces = [];
+                photo.faces.push({ personId: 'OTHERS', descriptor: Array.from(activeAiTagData.detection.descriptor) });
+            }
+            closeAiTagModal();
+            if (activeAiTagData.queue && activeAiTagData.queue.length > 0) {
+                setTimeout(() => promptNextUnassignedAiFace(activeAiTagData.queue), 200);
+            }
+        }
+
+        function closeAiTagModal() {
+            document.getElementById('aiTagModal').classList.add('hidden');
+        }
+
+        function updateAiProgress(percent, statusText) {
+            const bar = document.getElementById('aiProgressBar');
+            const percentEl = document.getElementById('aiProgressPercent');
+            const statusEl = document.getElementById('aiProgressStatus');
+
+            if (bar) bar.style.width = percent + '%';
+            if (percentEl) percentEl.innerText = percent + '%';
+            if (statusEl && statusEl.querySelector('span')) statusEl.querySelector('span').innerText = statusText;
+        }
+
+        function startFreshProject() {
+            if (!confirm("Are you sure you want to start a fresh project? This will clear current photos and tags in memory.")) return;
+            saveHistoryState();
+            
+            state.id = 'project_' + Date.now();
+            state.title = 'Good Day';
+            state.subtitle = 'Photo Gallery • 2026';
+            state.persons = [];
+            state.photos = [];
+            state.activeFilter = 'ALL';
+            state.activePhotoIndex = 0;
+
+            const titleIn = document.getElementById('editTitleInput');
+            const subIn = document.getElementById('editSubtitleInput');
+            if (titleIn) titleIn.value = state.title;
+            if (subIn) subIn.value = state.subtitle;
+
+            updateHeaderTitles();
+            renderGallery();
+            alert("Fresh project initialized! Load your images now.");
+        }
+
+        function toggleAppMode() {
+            if (currentMode === 'VIEWER') {
+                const password = prompt("Enter Developer Studio Passcode:");
+                if (password === "1234") {
+                    currentMode = 'DEVELOPER';
+                } else if (password !== null) {
+                    alert("Incorrect passcode!");
+                    return;
+                } else {
+                    return;
+                }
+            } else {
+                currentMode = 'VIEWER';
+            }
+            updateModeUI();
+        }
+
+        function updateModeUI() {
+            const devPanel = document.getElementById('developerPanel');
+            const modeLabel = document.getElementById('modeLabel');
+            const modeIcon = document.getElementById('modeIcon');
+
+            if (currentMode === 'DEVELOPER') {
+                if (devPanel) devPanel.classList.remove('hidden');
+                if (modeLabel) modeLabel.innerText = 'Developer Mode';
+                if (modeIcon) modeIcon.setAttribute('data-lucide', 'wrench');
+            } else {
+                if (devPanel) devPanel.classList.add('hidden');
+                if (modeLabel) modeLabel.innerText = 'Viewer Mode';
+                if (modeIcon) modeIcon.setAttribute('data-lucide', 'eye');
+            }
+            refreshIcons();
+            renderGallery();
+        }
 
         async function loadGalleryData() {
             try {
                 const res = await fetch('./gallery-data.json?t=' + Date.now());
-                if (!res.ok) {
-                    throw new Error(`HTTP ${res.status}: Could not load gallery-data.json from server.`);
-                }
+                if (!res.ok) throw new Error(`HTTP ${res.status}: Could not load gallery-data.json.`);
                 const data = await res.json();
-
-                let folderData = null;
-                if (Array.isArray(data)) {
-                    folderData = { id: 'main', title: 'UK Visit 2026', photos: data, persons: [] };
-                } else if (data.photos) {
-                    folderData = data;
-                } else if (data.blocks && data.blocks[0]) {
-                    folderData = data.blocks[0].folders ? data.blocks[0].folders[0] : data.blocks[0];
-                } else if (data.folders && data.folders[0]) {
-                    folderData = data.folders[0];
-                } else {
-                    folderData = data;
-                }
-
-                if (!folderData || !folderData.photos || folderData.photos.length === 0) {
-                    throw new Error("gallery-data.json was loaded, but contains no photo items.");
-                }
-
-                state.folders = [folderData];
-                renderViewer();
+                applyImportedData(data);
             } catch (err) {
                 console.error("Gallery Load Error:", err);
-                showDiagnosticsError("Network / Data Parse Error", err.message);
+                renderGallery();
             }
         }
 
-        function showDiagnosticsError(title, detail) {
-            const container = document.getElementById("galleryContainer");
-            container.innerHTML = `
-                <div class="bg-slate-900 border border-rose-500/30 rounded-2xl p-6 sm:p-8 space-y-4 shadow-2xl">
-                    <div class="flex items-center space-x-3 text-rose-400 border-b border-slate-800 pb-3">
-                        <i data-lucide="alert-triangle" class="w-7 h-7 flex-shrink-0"></i>
-                        <div>
-                            <h2 class="text-base sm:text-lg font-bold">${escapeHtml(title)}</h2>
-                            <p class="text-xs text-slate-400">Diagnostic Status Output</p>
-                        </div>
-                    </div>
-                    
-                    <p class="text-xs sm:text-sm text-slate-300 leading-relaxed bg-slate-950 p-4 rounded-xl border border-slate-800/80 font-mono">
-                        ${escapeHtml(detail)}
-                    </p>
+        function applyImportedData(data) {
+            let folderData = data;
+            if (data.blocks && data.blocks[0]) {
+                folderData = data.blocks[0].folders ? data.blocks[0].folders[0] : data.blocks[0];
+            } else if (data.folders && data.folders[0]) {
+                folderData = data.folders[0];
+            } else if (Array.isArray(data)) {
+                folderData = { id: 'main', title: 'Good Day', subtitle: 'Photo Gallery • 2026', photos: data, persons: [] };
+            }
 
-                    <div class="pt-2 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-400">
-                        <span>Expected Location: <code class="text-violet-400">https://kawan2020.github.io/UK-Visit-2026/gallery-data.json</code></span>
-                        <button onclick="location.reload()" class="px-4 py-2 bg-violet-600 hover:bg-violet-500 text-white rounded-xl font-semibold transition active:scale-95 shadow-md">
-                            Retry Connection
-                        </button>
-                    </div>
+            state.id = folderData.id || 'main';
+            state.title = folderData.title || 'Good Day';
+            state.subtitle = folderData.subtitle || 'Photo Gallery • 2026';
+            state.persons = folderData.persons || [];
+            state.photos = folderData.photos || [];
+            state.activeFilter = 'ALL';
+            state.activePhotoIndex = 0;
+
+            const titleIn = document.getElementById('editTitleInput');
+            const subIn = document.getElementById('editSubtitleInput');
+            if (titleIn) titleIn.value = state.title;
+            if (subIn) subIn.value = state.subtitle;
+
+            updateHeaderTitles();
+            renderGallery();
+        }
+
+        function updateHeaderTitles() {
+            const titleIn = document.getElementById('editTitleInput');
+            const subIn = document.getElementById('editSubtitleInput');
+            
+            if (titleIn && titleIn.value.trim()) state.title = titleIn.value.trim();
+            if (subIn && subIn.value.trim()) state.subtitle = subIn.value.trim();
+
+            const headerTitle = document.getElementById('mainHeaderTitle');
+            const headerSub = document.getElementById('mainHeaderSubtitle');
+            if (headerTitle) headerTitle.innerText = state.title;
+            if (headerSub) headerSub.innerText = state.subtitle;
+        }
+
+        async function handleImageUpload(e) {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            saveHistoryState();
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const dataUrl = await readFileAsDataURL(file);
+
+                const photoObj = {
+                    name: file.name,
+                    path: 'images/' + file.name,
+                    dataUrl: dataUrl,
+                    faces: []
+                };
+
+                if (!state.photos.some(p => p.name === file.name)) {
+                    state.photos.push(photoObj);
+                }
+            }
+
+            state.activeFilter = 'ALL';
+            state.activePhotoIndex = 0;
+            renderGallery();
+            
+            runAiScanOnCurrentPhotos();
+        }
+
+        function readFileAsDataURL(file) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (evt) => resolve(evt.target.result);
+                reader.readAsDataURL(file);
+            });
+        }
+
+        function handleJsonImport(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            saveHistoryState();
+
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    const data = JSON.parse(evt.target.result);
+                    applyImportedData(data);
+                    alert(`JSON Imported Successfully!`);
+                } catch(err) {
+                    alert("Invalid JSON file: " + err.message);
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function addNewPerson() {
+            const input = document.getElementById('newPersonName');
+            const name = input ? input.value.trim() : '';
+            if (!name) return;
+
+            saveHistoryState();
+
+            const personId = 'p_' + Date.now();
+            const newPerson = {
+                id: personId,
+                name: name,
+                avatarUrl: 'images/' + name.toLowerCase().replace(/\s+/g, '') + '_avatar.jpg'
+            };
+
+            if (!state.persons) state.persons = [];
+            state.persons.push(newPerson);
+
+            if (input) input.value = '';
+            renderGallery();
+        }
+
+        function renamePersonTag(personId) {
+            const person = state.persons.find(p => p.id === personId);
+            if (!person) return;
+            const newName = prompt("Rename person tag:", person.name);
+            if (newName && newName.trim()) {
+                saveHistoryState();
+                person.name = newName.trim();
+                renderGallery();
+            }
+        }
+
+        function removePersonTag(personId) {
+            if (!confirm("Are you sure you want to remove this person tag?")) return;
+            saveHistoryState();
+            state.persons = state.persons.filter(p => p.id !== personId);
+            state.photos.forEach(photo => {
+                if (photo.faces) {
+                    photo.faces = photo.faces.filter(f => f.personId !== personId);
+                }
+            });
+            renderGallery();
+        }
+
+        function openCropModalForPerson(personId, photoSrc) {
+            const person = state.persons.find(p => p.id === personId);
+            if (!person) return;
+
+            currentCropData.personId = personId;
+            currentCropData.photoSrc = photoSrc || person.dataUrl || resolveImagePath(person.avatarUrl);
+            currentCropData.posX = 0;
+            currentCropData.posY = 0;
+
+            document.getElementById('cropPersonName').innerText = person.name;
+            document.getElementById('cropZoom').value = 0.5;
+            document.getElementById('cropModal').classList.remove('hidden');
+
+            loadCropImageSrc(currentCropData.photoSrc);
+        }
+
+        function loadCropImageSrc(src) {
+            const img = new Image();
+            img.crossOrigin = "Anonymous";
+            img.onload = function() {
+                currentCropData.imgObj = img;
+                drawCropCanvas();
+            };
+            img.src = src;
+        }
+
+        function uploadDirectAvatarFile(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(evt) {
+                currentCropData.photoSrc = evt.target.result;
+                loadCropImageSrc(evt.target.result);
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function drawCropCanvas() {
+            const canvas = document.getElementById('cropCanvas');
+            if (!canvas || !currentCropData.imgObj) return;
+            const ctx = canvas.getContext('2d');
+            const zoom = parseFloat(document.getElementById('cropZoom').value) || 0.5;
+
+            canvas.width = 300;
+            canvas.height = 300;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const img = currentCropData.imgObj;
+            const scale = (Math.min(canvas.width / img.width, canvas.height / img.height) * zoom) * 1.5;
+            const sw = img.width * scale;
+            const sh = img.height * scale;
+
+            const dx = (canvas.width - sw) / 2 + currentCropData.posX;
+            const dy = (canvas.height - sh) / 2 + currentCropData.posY;
+
+            ctx.drawImage(img, dx, dy, sw, sh);
+        }
+
+        function setupCropCanvasEvents() {
+            const canvas = document.getElementById('cropCanvas');
+            if (!canvas) return;
+
+            const startDrag = (x, y) => {
+                currentCropData.isDragging = true;
+                currentCropData.startX = x - currentCropData.posX;
+                currentCropData.startY = y - currentCropData.posY;
+            };
+
+            const doDrag = (x, y) => {
+                if (!currentCropData.isDragging) return;
+                currentCropData.posX = x - currentCropData.startX;
+                currentCropData.posY = y - currentCropData.startY;
+                drawCropCanvas();
+            };
+
+            const stopDrag = () => { currentCropData.isDragging = false; };
+
+            canvas.onmousedown = (e) => startDrag(e.clientX, e.clientY);
+            canvas.onmousemove = (e) => doDrag(e.clientX, e.clientY);
+            canvas.onmouseup = stopDrag;
+            canvas.onmouseleave = stopDrag;
+
+            canvas.ontouchstart = (e) => startDrag(e.touches[0].clientX, e.touches[0].clientY);
+            canvas.ontouchmove = (e) => doDrag(e.touches[0].clientX, e.touches[0].clientY);
+            canvas.ontouchend = stopDrag;
+        }
+
+        async function saveCroppedAvatar() {
+            const canvas = document.getElementById('cropCanvas');
+            if (!canvas || !currentCropData.personId) return;
+
+            saveHistoryState();
+
+            const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+            const person = state.persons.find(p => p.id === currentCropData.personId);
+            if (person) {
+                person.dataUrl = dataUrl;
+                person.avatarUrl = 'images/' + person.name.toLowerCase().replace(/\s+/g, '') + '_avatar.jpg';
+
+                if (aiModelsLoaded) {
+                    try {
+                        const img = await faceapi.fetchImage(dataUrl);
+                        const detection = await faceapi.detectSingleFace(img).withFaceLandmarks().withFaceDescriptor();
+                        if (detection) {
+                            person.descriptor = Array.from(detection.descriptor);
+                        }
+                    } catch (e) {
+                        console.log("Descriptor extraction note:", e);
+                    }
+                }
+            }
+
+            closeCropModal();
+            renderGallery();
+            alert("Avatar image saved and updated!");
+        }
+
+        function closeCropModal() {
+            document.getElementById('cropModal').classList.add('hidden');
+        }
+
+        function assignCurrentPhotoToPerson(personId) {
+            let filteredPhotos = state.photos;
+            if (state.activeFilter === 'OTHERS') filteredPhotos = getOthersPhotos();
+            else if (state.activeFilter !== 'ALL') filteredPhotos = getPhotosForPerson(state.activeFilter);
+
+            if (filteredPhotos.length === 0) return;
+            const photo = filteredPhotos[state.activePhotoIndex];
+            if (!photo) return;
+
+            saveHistoryState();
+
+            if (personId === 'OTHERS') {
+                photo.faces = [{ personId: 'OTHERS' }];
+            } else {
+                photo.faces = [{ personId: personId }];
+            }
+            renderGallery();
+        }
+
+        function exportGalleryJson() {
+            updateHeaderTitles();
+            
+            const exportPersons = (state.persons || []).map(p => ({
+                id: p.id,
+                name: p.name,
+                avatarUrl: p.avatarUrl || ('images/' + p.name.toLowerCase().replace(/\s+/g, '') + '_avatar.jpg'),
+                dataUrl: p.dataUrl || null,
+                descriptor: p.descriptor || null
+            }));
+
+            const jsonStr = JSON.stringify({
+                id: state.id,
+                title: state.title,
+                subtitle: state.subtitle,
+                persons: exportPersons,
+                photos: state.photos
+            }, null, 2);
+
+            const blob = new Blob([jsonStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'gallery-data.json';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+
+        function renderPeopleManagerList() {
+            const container = document.getElementById('peopleManagerList');
+            if (!container) return;
+
+            if (!state.persons || state.persons.length === 0) {
+                container.innerHTML = `<p class="text-xs text-slate-500">No person tags created yet. Add a name above to start building tags!</p>`;
+                return;
+            }
+
+            container.innerHTML = `
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5 pt-1">
+                    ${state.persons.map(person => {
+                        const avatarSrc = person.dataUrl || resolveImagePath(person.avatarUrl);
+                        return `
+                            <div class="flex items-center justify-between bg-slate-900 border border-slate-800 rounded-xl p-2.5 shadow-sm">
+                                <div class="flex items-center space-x-2.5 min-w-0">
+                                    <img src="${avatarSrc}" alt="${escapeHtml(person.name)}" class="w-9 h-9 rounded-full object-cover bg-slate-950 flex-shrink-0 border border-slate-700" onerror="this.src='https://placehold.co/150x150/1e293b/8b5cf6?text=${encodeURIComponent(person.name)}'">
+                                    <div class="truncate">
+                                        <p class="text-xs font-bold text-slate-200 truncate">${escapeHtml(person.name)}</p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-1 flex-shrink-0">
+                                    <button onclick="openCropModalForPerson('${person.id}')" class="px-2 py-1 bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 border border-violet-500/30 rounded-lg text-[10px] font-semibold transition active:scale-95 flex items-center space-x-1" title="Set/Replace Avatar">
+                                        <i data-lucide="image-plus" class="w-3 h-3 text-violet-400"></i>
+                                        <span>Replace</span>
+                                    </button>
+                                    <button onclick="renamePersonTag('${person.id}')" class="p-1 hover:bg-slate-800 text-slate-400 hover:text-white rounded-lg transition" title="Rename Tag">
+                                        <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                    <button onclick="removePersonTag('${person.id}')" class="p-1 hover:bg-rose-500/20 text-slate-400 hover:text-rose-400 rounded-lg transition" title="Delete Tag">
+                                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
                 </div>
             `;
             refreshIcons();
         }
 
-        function renderViewer() {
+        function renderGallery() {
             const container = document.getElementById("galleryContainer");
-            container.innerHTML = '';
-
-            state.folders.forEach(folder => {
-                if (!folder.title || folder.title.startsWith("Image Folder Block")) {
-                    folder.title = "UK Visit 2026";
-                }
-
-                if (!folder.activeFilter) folder.activeFilter = 'ALL';
-                if (!folder.activePhotoIndex) folder.activePhotoIndex = 0;
-
-                const blockEl = document.createElement("section");
-                blockEl.id = `block_${folder.id}`;
-                blockEl.className = "bg-slate-900/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-3 sm:p-6 shadow-xl space-y-4 sm:space-y-5";
-
-                blockEl.innerHTML = `
-                    <div class="border-b border-slate-800/80 pb-2.5">
-                        <h2 class="text-base sm:text-xl font-bold text-slate-100">${escapeHtml(folder.title)}</h2>
-                    </div>
-
-                    <div class="space-y-2">
-                        <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
-                            <i data-lucide="users" class="w-4 h-4 text-violet-400"></i>
-                            <span>People Directory</span>
-                        </h3>
-
-                        <div class="bg-slate-950/80 border border-slate-800/80 rounded-2xl p-2.5 sm:p-4 min-h-[95px] sm:min-h-[105px] overflow-hidden">
-                            <div id="avatars_${folder.id}" class="flex items-center space-x-3 sm:space-x-4 overflow-x-auto pb-1 touch-pan-x"></div>
-                        </div>
-                    </div>
-
-                    <div id="carouselArea_${folder.id}" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-2.5 sm:p-4 space-y-3"></div>
-                `;
-
-                container.appendChild(blockEl);
-                renderFolderAvatars(folder);
-                renderCarousel(folder);
-            });
-
-            refreshIcons();
-        }
-
-        function renderFolderAvatars(folder) {
-            const container = document.getElementById(`avatars_${folder.id}`);
             if (!container) return;
             container.innerHTML = '';
 
-            const allSelected = folder.activeFilter === 'ALL';
+            const blockEl = document.createElement("section");
+            blockEl.className = "bg-gradient-to-b from-slate-900/90 to-slate-950/90 border border-slate-800 rounded-2xl sm:rounded-3xl p-4 sm:p-6 shadow-2xl space-y-5 backdrop-blur-md";
+
+            blockEl.innerHTML = `
+                <div class="border-b border-slate-800/80 pb-3 flex items-center justify-between">
+                    <h2 class="text-base sm:text-xl font-extrabold text-slate-100 tracking-wide">${escapeHtml(state.title)}</h2>
+                    <span class="text-xs font-mono text-slate-400 bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800">${state.photos ? state.photos.length : 0} Total Photos</span>
+                </div>
+
+                <div class="space-y-2.5">
+                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center space-x-1.5">
+                        <i data-lucide="users" class="w-4 h-4 text-violet-400"></i>
+                        <span>People Directory</span>
+                    </h3>
+
+                    <div class="bg-slate-950/80 border border-slate-800/80 rounded-2xl py-3 px-3.5 min-h-[115px] shadow-inner">
+                        <div id="avatarsContainer" class="flex items-center space-x-4 sm:space-x-5 overflow-x-auto py-2.5 px-1 touch-pan-x"></div>
+                    </div>
+                </div>
+
+                <div id="carouselArea" class="bg-slate-950/60 border border-slate-800 rounded-2xl p-3 sm:p-5 space-y-4 shadow-inner"></div>
+            `;
+
+            container.appendChild(blockEl);
+            renderPeopleManagerList();
+            renderFolderAvatars();
+            renderCarousel();
+            refreshIcons();
+        }
+
+        function renderFolderAvatars() {
+            const container = document.getElementById("avatarsContainer");
+            if (!container) return;
+            container.innerHTML = '';
+
+            const allSelected = state.activeFilter === 'ALL';
             const allAvatar = document.createElement("div");
-            allAvatar.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0";
-            allAvatar.onclick = () => setFilter(folder.id, 'ALL');
+            allAvatar.className = "flex flex-col items-center space-y-1.5 cursor-pointer group flex-shrink-0 my-1";
+            allAvatar.onclick = () => setFilter('ALL');
 
             allAvatar.innerHTML = `
-                <div class="relative w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-gradient-to-tr from-violet-600 to-indigo-600 text-white font-bold shadow-md transition-all active:scale-95 ${allSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700'}">
-                    <i data-lucide="grid" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+                <div class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-gradient-to-tr from-violet-600 via-indigo-600 to-amber-500 text-white font-bold shadow-lg transition-all active:scale-95 ${allSelected ? 'avatar-ring-selected scale-105' : 'border-2 border-slate-700 opacity-80 group-hover:opacity-100'}">
+                    <i data-lucide="grid" class="w-6 h-6"></i>
                 </div>
                 <div class="text-center">
-                    <p class="text-[10px] sm:text-[11px] font-semibold ${allSelected ? 'text-violet-400' : 'text-slate-300'}">ALL</p>
-                    <p class="text-[8px] sm:text-[9px] text-slate-500">${folder.photos ? folder.photos.length : 0} photos</p>
+                    <p class="text-[11px] sm:text-xs font-bold ${allSelected ? 'text-violet-400' : 'text-slate-300'}">ALL</p>
+                    <p class="text-[9px] text-slate-500 font-mono">${state.photos ? state.photos.length : 0} photos</p>
                 </div>
             `;
             container.appendChild(allAvatar);
 
-            if (folder.persons && Array.isArray(folder.persons)) {
-                folder.persons.forEach(person => {
-                    const isSelected = folder.activeFilter === person.id;
-                    const count = getPhotosForPerson(folder, person.id).length;
-                    if (count === 0) return;
+            if (state.persons && Array.isArray(state.persons)) {
+                state.persons.forEach(person => {
+                    const isSelected = state.activeFilter === person.id;
+                    const count = getPhotosForPerson(person.id).length;
 
-                    const avatarSrc = resolveImagePath(person.avatarUrl);
+                    const avatarSrc = person.dataUrl || resolveImagePath(person.avatarUrl);
                     const avatarEl = document.createElement("div");
-                    avatarEl.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0";
-                    avatarEl.onclick = () => setFilter(folder.id, person.id);
+                    avatarEl.className = "flex flex-col items-center space-y-1.5 cursor-pointer group flex-shrink-0 my-1";
+                    avatarEl.onclick = () => setFilter(person.id);
 
                     avatarEl.innerHTML = `
-                        <div class="relative w-12 h-12 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-slate-900 transition-all active:scale-95 ${isSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-violet-500'}">
-                            <img src="${avatarSrc}" alt="${escapeHtml(person.name)}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/150x150/1e293b/8b5cf6?text=Face'">
+                        <div class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden bg-slate-900 transition-all active:scale-95 ${isSelected ? 'avatar-ring-selected scale-105' : 'border-2 border-slate-700 opacity-80 group-hover:opacity-100 hover:border-violet-500'}">
+                            <img src="${avatarSrc}" alt="${escapeHtml(person.name)}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/150x150/1e293b/8b5cf6?text=${encodeURIComponent(person.name)}'">
                         </div>
-                        <div class="text-center max-w-[65px] sm:max-w-[70px] truncate">
-                            <p class="text-[10px] sm:text-[11px] font-medium truncate ${isSelected ? 'text-violet-400 font-semibold' : 'text-slate-300'}">${escapeHtml(person.name)}</p>
-                            <p class="text-[8px] sm:text-[9px] text-slate-500">${count} photos</p>
+                        <div class="text-center max-w-[70px] sm:max-w-[80px] truncate">
+                            <p class="text-[11px] sm:text-xs font-bold truncate ${isSelected ? 'text-violet-400' : 'text-slate-300'}">${escapeHtml(person.name)}</p>
+                            <p class="text-[9px] text-slate-500 font-mono">${count} photos</p>
                         </div>
                     `;
                     container.appendChild(avatarEl);
                 });
             }
 
-            const othersCount = getOthersPhotos(folder).length;
-            if (othersCount > 0) {
-                const othersSelected = folder.activeFilter === 'OTHERS';
+            const othersCount = getOthersPhotos().length;
+            if (othersCount > 0 || currentMode === 'DEVELOPER') {
+                const othersSelected = state.activeFilter === 'OTHERS';
                 const othersAvatar = document.createElement("div");
-                othersAvatar.className = "flex flex-col items-center space-y-1 cursor-pointer group flex-shrink-0";
-                othersAvatar.onclick = () => setFilter(folder.id, 'OTHERS');
+                othersAvatar.className = "flex flex-col items-center space-y-1.5 cursor-pointer group flex-shrink-0 my-1";
+                othersAvatar.onclick = () => setFilter('OTHERS');
 
                 othersAvatar.innerHTML = `
-                    <div class="relative w-12 h-12 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-slate-800 text-slate-400 font-bold transition-all active:scale-95 ${othersSelected ? 'avatar-ring-selected' : 'border-2 border-slate-700 hover:border-slate-500'}">
-                        <i data-lucide="user-minus" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+                    <div class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-full flex items-center justify-center bg-slate-850 text-slate-400 font-bold transition-all active:scale-95 ${othersSelected ? 'avatar-ring-selected scale-105' : 'border-2 border-slate-700 opacity-80 group-hover:opacity-100 hover:border-slate-500'}">
+                        <i data-lucide="user-minus" class="w-6 h-6"></i>
                     </div>
                     <div class="text-center">
-                        <p class="text-[10px] sm:text-[11px] font-medium ${othersSelected ? 'text-violet-400 font-semibold' : 'text-slate-400'}">Others</p>
-                        <p class="text-[8px] sm:text-[9px] text-slate-500">${othersCount} photos</p>
+                        <p class="text-[11px] sm:text-xs font-bold ${othersSelected ? 'text-violet-400' : 'text-slate-400'}">Others</p>
+                        <p class="text-[9px] text-slate-500 font-mono">${othersCount} photos</p>
                     </div>
                 `;
                 container.appendChild(othersAvatar);
@@ -278,93 +1036,133 @@
             return 'images/' + filename;
         }
 
-        function getPhotosForPerson(folder, personId) {
-            if (!folder.photos) return [];
-            return folder.photos.filter(p => p.faces && p.faces.some(f => f.personId === personId));
+        function getPhotosForPerson(personId) {
+            if (!state.photos) return [];
+            return state.photos.filter(p => p.faces && p.faces.some(f => f.personId === personId));
         }
 
-        function getOthersPhotos(folder) {
-            if (!folder.photos) return [];
-            return folder.photos.filter(p => p.faces && p.faces.some(f => f.personId === 'OTHERS'));
+        function getOthersPhotos() {
+            if (!state.photos) return [];
+            return state.photos.filter(p => {
+                if (!p.faces || p.faces.length === 0) return true;
+                return !p.faces.some(f => state.persons.some(person => person.id === f.personId));
+            });
         }
 
-        function setFilter(folderId, filterId) {
-            const folder = state.folders.find(f => f.id === folderId);
-            if (!folder) return;
-            folder.activeFilter = filterId;
-            folder.activePhotoIndex = 0;
-            renderFolderAvatars(folder);
-            renderCarousel(folder);
+        function setFilter(filterId) {
+            state.activeFilter = filterId;
+            state.activePhotoIndex = 0;
+            renderFolderAvatars();
+            renderCarousel();
             refreshIcons();
         }
 
-        function renderCarousel(folder) {
-            const container = document.getElementById(`carouselArea_${folder.id}`);
+        function renderCarousel() {
+            const container = document.getElementById("carouselArea");
             if (!container) return;
 
-            let filteredPhotos = folder.photos || [];
+            let filteredPhotos = state.photos || [];
             let label = "All Photos";
 
-            if (folder.activeFilter === 'OTHERS') {
-                filteredPhotos = getOthersPhotos(folder);
+            if (state.activeFilter === 'OTHERS') {
+                filteredPhotos = getOthersPhotos();
                 label = `Others (${filteredPhotos.length})`;
-            } else if (folder.activeFilter !== 'ALL') {
-                const person = folder.persons ? folder.persons.find(p => p.id === folder.activeFilter) : null;
+            } else if (state.activeFilter !== 'ALL') {
+                const person = state.persons ? state.persons.find(p => p.id === state.activeFilter) : null;
                 if (person) {
-                    filteredPhotos = getPhotosForPerson(folder, person.id);
+                    filteredPhotos = getPhotosForPerson(person.id);
                     label = `${person.name} (${filteredPhotos.length})`;
                 }
             }
 
             if (filteredPhotos.length === 0) {
-                container.innerHTML = `<p class="text-xs text-slate-500 py-6 text-center">No photos available for this selection.</p>`;
+                container.innerHTML = `<p class="text-xs text-slate-500 py-10 text-center font-medium">No photos available for this selection.</p>`;
                 return;
             }
 
-            if (folder.activePhotoIndex >= filteredPhotos.length) {
-                folder.activePhotoIndex = 0;
+            if (state.activePhotoIndex >= filteredPhotos.length) {
+                state.activePhotoIndex = 0;
             }
 
-            const currentPhoto = filteredPhotos[folder.activePhotoIndex];
-            const imageSrc = resolveImagePath(currentPhoto.path || currentPhoto.dataUrl || currentPhoto.name);
+            const currentPhoto = filteredPhotos[state.activePhotoIndex];
+            const imageSrc = currentPhoto.dataUrl || resolveImagePath(currentPhoto.path || currentPhoto.name);
+
+            let devTagControls = '';
+            if (currentMode === 'DEVELOPER') {
+                devTagControls = `
+                    <div class="flex flex-col space-y-2.5 py-3 border-t border-slate-800">
+                        <div class="flex items-center space-x-2 overflow-x-auto">
+                            <span class="text-[11px] font-bold text-amber-400 flex items-center space-x-1 flex-shrink-0 uppercase tracking-wider">
+                                <i data-lucide="tag" class="w-3.5 h-3.5"></i>
+                                <span>Tag Photo:</span>
+                            </span>
+                            ${state.persons.map(p => `
+                                <button onclick="assignCurrentPhotoToPerson('${p.id}')" class="px-3 py-1.5 bg-slate-800 hover:bg-violet-600 text-slate-200 hover:text-white rounded-xl text-[11px] font-semibold transition active:scale-95 flex-shrink-0 shadow-sm">
+                                    Tag ${escapeHtml(p.name)}
+                                </button>
+                            `).join('')}
+                            <button onclick="assignCurrentPhotoToPerson('OTHERS')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-400 rounded-xl text-[11px] font-semibold transition active:scale-95 flex-shrink-0">
+                                Tag Others
+                            </button>
+                        </div>
+
+                        <div class="flex items-center space-x-2 overflow-x-auto pt-1">
+                            <span class="text-[11px] font-bold text-violet-400 flex items-center space-x-1 flex-shrink-0 uppercase tracking-wider">
+                                <i data-lucide="user-check" class="w-3.5 h-3.5"></i>
+                                <span>Set Face Avatar From Photo:</span>
+                            </span>
+                            ${state.persons.map(p => `
+                                <button onclick="openCropModalForPerson('${p.id}', '${imageSrc}')" class="px-3 py-1.5 bg-violet-600/20 hover:bg-violet-600/40 text-violet-300 border border-violet-500/30 rounded-xl text-[11px] font-bold transition active:scale-95 flex-shrink-0 flex items-center space-x-1 shadow-sm">
+                                    <i data-lucide="crop" class="w-3.5 h-3.5 text-violet-400"></i>
+                                    <span>Crop Face for ${escapeHtml(p.name)}</span>
+                                </button>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            }
 
             container.innerHTML = `
-                <div class="flex items-center justify-between pb-2 border-b border-slate-800/60">
-                    <span class="text-xs font-semibold px-2.5 py-0.5 rounded bg-violet-600/20 text-violet-400 border border-violet-500/30">
-                        ${escapeHtml(label)}
-                    </span>
-                    <span class="text-xs text-slate-400 font-mono">
-                        ${folder.activePhotoIndex + 1} / ${filteredPhotos.length}
+                <div class="flex items-center justify-between pb-2 border-b border-slate-800/60 gap-2">
+                    <div class="flex items-center space-x-2 min-w-0 truncate">
+                        <span class="text-xs font-bold px-3 py-1 rounded-lg bg-violet-600/20 text-violet-300 border border-violet-500/30 shadow-sm flex-shrink-0">
+                            ${escapeHtml(label)}
+                        </span>
+                        <span class="text-xs font-mono text-slate-300 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-lg truncate">
+                            ${escapeHtml(currentPhoto.name)}
+                        </span>
+                    </div>
+
+                    <span class="text-xs text-slate-400 font-mono bg-slate-950 px-2.5 py-1 rounded-lg border border-slate-800 flex-shrink-0">
+                        ${state.activePhotoIndex + 1} / ${filteredPhotos.length}
                     </span>
                 </div>
 
                 <div ontouchstart="handleTouchStart(event)" 
-                     ontouchend="handleTouchEnd(event, '${folder.id}')" 
-                     class="carousel-frame relative group flex items-center justify-center bg-slate-950 rounded-xl overflow-hidden min-h-[260px] sm:min-h-[380px] max-h-[475px] select-none">
+                     ontouchend="handleTouchEnd(event)" 
+                     class="carousel-frame relative group flex items-center justify-center bg-slate-950 rounded-2xl overflow-hidden min-h-[280px] sm:min-h-[420px] max-h-[520px] select-none shadow-2xl border border-slate-800/80">
                     
                     <img src="${imageSrc}" alt="${escapeHtml(currentPhoto.name)}" 
                          onclick="openZoomModal('${imageSrc}')"
-                         class="carousel-img zoomable-img max-h-[475px] w-auto max-w-full object-contain rounded shadow-2xl" 
+                         class="carousel-img zoomable-img max-h-[520px] w-auto max-w-full object-contain rounded-lg shadow-2xl" 
                          onerror="this.src='https://placehold.co/800x600/1e293b/94a3b8?text=Image+Not+Found+in+/images/'">
 
-                    <button onclick="navigateCarousel('${folder.id}', -1)" class="absolute left-2 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 opacity-80 group-hover:opacity-100 transition-all active:scale-90">
-                        <i data-lucide="chevron-left" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                    <button onclick="navigateCarousel(-1)" class="absolute left-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700/80 shadow-2xl opacity-80 group-hover:opacity-100 transition-all active:scale-90">
+                        <i data-lucide="chevron-left" class="w-5 h-5"></i>
                     </button>
 
-                    <button onclick="navigateCarousel('${folder.id}', 1)" class="absolute right-2 top-1/2 -translate-y-1/2 p-2 sm:p-2.5 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700 opacity-80 group-hover:opacity-100 transition-all active:scale-90">
-                        <i data-lucide="chevron-right" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+                    <button onclick="navigateCarousel(1)" class="absolute right-3 top-1/2 -translate-y-1/2 p-3 rounded-full bg-slate-900/80 hover:bg-violet-600 text-white backdrop-blur-md border border-slate-700/80 shadow-2xl opacity-80 group-hover:opacity-100 transition-all active:scale-90">
+                        <i data-lucide="chevron-right" class="w-5 h-5"></i>
                     </button>
-
-                    <div class="absolute bottom-2 left-2 bg-slate-900/80 backdrop-blur-md border border-slate-800 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-lg text-[10px] sm:text-xs text-slate-300 max-w-[80%] truncate">
-                        ${escapeHtml(currentPhoto.name)}
-                    </div>
                 </div>
 
-                <div class="flex items-center space-x-2 overflow-x-auto py-1 touch-pan-x">
+                ${devTagControls}
+
+                <div class="flex items-center space-x-2.5 overflow-x-auto py-1 touch-pan-x">
                     ${filteredPhotos.map((p, idx) => {
-                        const thumbSrc = resolveImagePath(p.path || p.dataUrl || p.name);
+                        const thumbSrc = p.dataUrl || resolveImagePath(p.path || p.name);
                         return `
-                            <div onclick="setCarouselIndex('${folder.id}',${idx})" class="relative w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden flex-shrink-0 cursor-pointer transition-all border-2 ${idx === folder.activePhotoIndex ? 'border-violet-500 scale-105 shadow-md' : 'border-slate-800 opacity-50 hover:opacity-100'}">
+                            <div onclick="setCarouselIndex(${idx})" class="relative w-14 h-14 sm:w-16 sm:h-16 rounded-xl overflow-hidden flex-shrink-0 cursor-pointer transition-all border-2 ${idx === state.activePhotoIndex ? 'border-violet-500 scale-105 shadow-lg shadow-violet-500/20' : 'border-slate-800 opacity-50 hover:opacity-100'}">
                                 <img src="${thumbSrc}" class="w-full h-full object-cover" onerror="this.src='https://placehold.co/100x100/1e293b/94a3b8?text=?'">
                             </div>
                         `;
@@ -392,31 +1190,26 @@
             touchStartX = e.changedTouches[0].screenX;
         }
 
-        function handleTouchEnd(e, folderId) {
+        function handleTouchEnd(e) {
             touchEndX = e.changedTouches[0].screenX;
             const dist = touchEndX - touchStartX;
-            if (dist > 40) navigateCarousel(folderId, -1);
-            else if (dist < -40) navigateCarousel(folderId, 1);
+            if (dist > 40) navigateCarousel(-1);
+            else if (dist < -40) navigateCarousel(1);
         }
 
-        function navigateCarousel(folderId, dir) {
-            const folder = state.folders.find(f => f.id === folderId);
-            if (!folder) return;
-
-            let photos = folder.photos || [];
-            if (folder.activeFilter === 'OTHERS') photos = getOthersPhotos(folder);
-            else if (folder.activeFilter !== 'ALL') photos = getPhotosForPerson(folder, folder.activeFilter);
+        function navigateCarousel(dir) {
+            let photos = state.photos || [];
+            if (state.activeFilter === 'OTHERS') photos = getOthersPhotos();
+            else if (state.activeFilter !== 'ALL') photos = getPhotosForPerson(state.activeFilter);
 
             if (photos.length === 0) return;
-            folder.activePhotoIndex = (folder.activePhotoIndex + dir + photos.length) % photos.length;
-            renderCarousel(folder);
+            state.activePhotoIndex = (state.activePhotoIndex + dir + photos.length) % photos.length;
+            renderCarousel();
         }
 
-        function setCarouselIndex(folderId, idx) {
-            const folder = state.folders.find(f => f.id === folderId);
-            if (!folder) return;
-            folder.activePhotoIndex = idx;
-            renderCarousel(folder);
+        function setCarouselIndex(idx) {
+            state.activePhotoIndex = idx;
+            renderCarousel();
         }
 
         function refreshIcons() {
